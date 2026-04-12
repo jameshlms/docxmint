@@ -29,12 +29,9 @@ htmlcov/
 # Ruff
 .ruff_cache/
 
-# Jupyter / nbconvert
+# Jupyter / notebooks
 .ipynb_checkpoints/
-*.nbconvert.ipynb
-notebooks/*.html
-notebooks/*.pdf
-notebooks/*.py
+notebooks/
 
 # .NET / C#
 bin/
