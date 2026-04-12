@@ -1,0 +1,11 @@
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <!--
+    Runtime directives for Native AOT / IL Linker.
+    Add entries here if reflection-based code paths in DocumentFormat.OpenXml
+    are trimmed away at publish time. For example:
+
+    <Application>
+      <Assembly Name="DocumentFormat.OpenXml" Dynamic="Required All" />
+    </Application>
+  -->
+</Directives>

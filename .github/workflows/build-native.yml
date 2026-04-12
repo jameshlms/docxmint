@@ -1,0 +1,64 @@
+name: Build Native Binaries
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            os: ubuntu-24.04
+            lib_name: libFastDocx.Native.so
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
+            lib_name: libFastDocx.Native.so
+          - rid: win-x64
+            os: windows-2022
+            lib_name: FastDocx.Native.dll
+          - rid: osx-arm64
+            os: macos-14
+            lib_name: libFastDocx.Native.dylib
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      # Native AOT requires the native toolchain on Linux
+      - name: Install native build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang zlib1g-dev
+
+      - name: Publish Native AOT shared library
+        run: >
+          dotnet publish native/FastDocx.Native/FastDocx.Native.csproj
+          -r ${{ matrix.rid }}
+          -c Release
+          --self-contained true
+          -p:PublishAot=true
+          -p:NativeLib=Shared
+          -o publish/${{ matrix.rid }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}/${{ matrix.lib_name }}
+          if-no-files-found: error
+          retention-days: 7

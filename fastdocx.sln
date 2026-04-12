@@ -1,0 +1,41 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "native", "native", "{2F2BA0B1-8447-348E-8DA4-622F0257D38B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastDocx.Native", "native\FastDocx.Native\FastDocx.Native.csproj", "{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "native", "native", "{5CAE2597-66F0-584A-32F0-7DDF4B01EDF4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastDocx.Native.Tests", "tests\native\FastDocx.Native.Tests\FastDocx.Native.Tests.csproj", "{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E} = {2F2BA0B1-8447-348E-8DA4-622F0257D38B}
+		{5CAE2597-66F0-584A-32F0-7DDF4B01EDF4} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE} = {5CAE2597-66F0-584A-32F0-7DDF4B01EDF4}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {183A7680-FAF9-41CA-B227-B2F0E456AB47}
+	EndGlobalSection
+EndGlobal

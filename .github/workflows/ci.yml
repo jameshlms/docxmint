@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dotnet:
+    name: .NET build & tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: dotnet restore native/FastDocx.Native/FastDocx.Native.csproj
+
+      - name: Build (TreatWarningsAsErrors + AOT analyser)
+        run: >
+          dotnet build native/FastDocx.Native/FastDocx.Native.csproj
+          -c Release
+          -p:TreatWarningsAsErrors=true
+          -p:EnableAotAnalyzer=true
+          --no-restore
+
+      - name: Run C# xUnit tests
+        run: >
+          dotnet test tests/native/FastDocx.Native.Tests/FastDocx.Native.Tests.csproj
+          -c Release
+          --logger "console;verbosity=normal"
+
+  struct-layout-check:
+    name: Struct layout check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run check_struct_layouts.py
+        run: python scripts/check_struct_layouts.py
+
+  python:
+    name: Python lint, type-check & unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff check
+        run: ruff check fastdocx tests
+
+      - name: mypy --strict
+        run: mypy --strict fastdocx
+
+      - name: pytest (unit only)
+        run: pytest tests/unit/ -v --tb=short

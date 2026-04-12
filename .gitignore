@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.dist-info/
+.hatch/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+.uv/
+pip-wheel-metadata/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Jupyter / nbconvert
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+notebooks/*.html
+notebooks/*.pdf
+notebooks/*.py
+
+# .NET / C#
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+*.nupkg
+*.pdb
+*.ilk
+*.exp
+*.lib
+TestResults/
+
+# Benchmark artefacts
+scripts/benchmark_results.json
+
+# Scratch / test output
+artifacts/*.docx
+*.docx
+
+# Env / secrets
+.env
+.env.*
+secrets.toml
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# settings
+.claude/
+.vscode/
+
