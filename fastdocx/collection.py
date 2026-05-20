@@ -1,0 +1,342 @@
+"""DocumentView[T] — the live generic collection type for all proxy elements.
+
+A DocumentView is never a copy. It holds a reference to the parent object and
+the collection name, and reflects the current document state on every access.
+"""
+
+from __future__ import annotations
+
+import warnings
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING, Any, Self
+
+from fastdocx._proxy.base import ProxyBase
+from fastdocx.errors import NativeRuntimeError, OwnershipError
+
+if TYPE_CHECKING:
+    from fastdocx._native.handle import Handle
+    from fastdocx.document import Document
+
+
+class CollectionMixin[T: ProxyBase]:
+    """Shared live-collection behaviour for Document and DocumentView.
+
+    Concrete subclasses must expose: _lib, _document, _elem_types,
+    _collection_name, and _parent_handle (property or int).
+    """
+
+    _lib: Handle
+    _document: Document
+    _elem_types: tuple[type[T], ...]
+    _collection_name: str
+    _parent_handle: int
+
+    # ------------------------------------------------------------------
+    # Core internal helpers
+    # ------------------------------------------------------------------
+
+    def _count(self) -> int:
+        return self._lib.get_count(
+            self._parent_handle,
+            self._collection_name,
+        )
+
+    def _handle_at(self, index: int) -> int:
+        return self._lib.get_child_handle(
+            self._parent_handle,
+            self._collection_name,
+            index,
+        )
+
+    def _make_proxy(self, child_handle: int) -> T:
+        if len(self._elem_types) == 1:
+            return self._elem_types[0]._from_native(  # type: ignore[reportPrivateUsage]
+                child_handle,
+                self._document,
+            )
+        type_name = self._lib.get_element_type(child_handle)
+        for proxy_type in self._elem_types:
+            if proxy_type._child_type_name == type_name:  # type: ignore[reportPrivateUsage]
+                return proxy_type._from_native(  # type: ignore[reportPrivateUsage]
+                    child_handle,
+                    self._document,
+                )
+        raise NativeRuntimeError(f"Unknown element type {type_name!r} returned by native library")
+
+    def _validate_element(self, element: Any) -> None:
+        if not isinstance(element, tuple(self._elem_types)):
+            names = " | ".join(t.__name__ for t in self._elem_types)
+            raise TypeError(
+                f"{type(self).__name__}[{names}] only accepts {names} elements, "
+                f"got {type(element).__name__}. "
+                "Use doc.append() or doc[ParaType | TableType] instead."
+            )
+
+    def _append_one(self, element: T) -> T:
+        from fastdocx.table import Table
+
+        self._validate_element(element)
+        native = object.__getattribute__(element, "_native")
+        if native is not None:
+            doc = object.__getattribute__(element, "_document")
+            if doc is not self._document:
+                raise OwnershipError(
+                    f"This {type(element).__name__} belongs to a different document. "
+                    "Call snapshot() to get a document-independent copy."
+                )
+            raise ValueError(f"This {type(element).__name__} is already in a document.")
+
+        data: dict[str, Any] = object.__getattribute__(element, "_data")
+
+        if isinstance(element, Table):
+            rows = int(data.get("rows", 1))
+            cols = int(data.get("cols", 1))
+            child_handle = self._lib.add_table(self._parent_handle, rows, cols)
+            filtered = {k: v for k, v in data.items() if k not in ("rows", "cols")}
+            if filtered:
+                self._lib.set_many(child_handle, filtered)
+        else:
+            child_handle = self._lib.append_child(
+                self._parent_handle,
+                type(element)._child_type_name,  # type: ignore[reportPrivateUsage]
+            )
+            if data:
+                self._lib.set_many(child_handle, data)
+
+        element._attach(child_handle, self._document)  # type: ignore[reportPrivateUsage]
+        return element
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def first(self) -> T | None:
+        """Returns the first element of the collection
+
+        Raises:
+            NativeRuntimeError: If the native library returns an error when trying to access the first element
+
+        Returns:
+            T | None: The first element of the collection. Defaults to None if the collection is empty.
+        """
+        if self._count() == 0:
+            return None
+        try:
+            return self._make_proxy(self._handle_at(0))
+        except NativeRuntimeError:
+            return None
+
+    @property
+    def last(self) -> T | None:
+        """Returns the last element of the collection
+
+        Raises:
+            NativeRuntimeError: If the native library returns an error when trying to access the last element
+
+        Returns:
+            T | None: The last element of the collection. Defaults to None if the collection is empty.
+        """
+        n = self._count()
+        if n == 0:
+            return None
+        return self._make_proxy(self._handle_at(n - 1))
+
+    # ------------------------------------------------------------------
+    # Mutations
+    # ------------------------------------------------------------------
+
+    def append(self, element: T) -> None:
+        self._append_one(element)
+
+    def extend(self, elements: Iterable[T]) -> None:
+        for elem in elements:
+            self._append_one(elem)
+
+    def insert(self, index: int, element: T) -> None:
+        # v1: append to end and note the limitation
+        self._append_one(element)
+        warnings.warn(
+            "insert() currently only supports appending to the end of the collection. "
+            f"Got index {index}. This may raise an error in future versions.",
+            FutureWarning,
+            stacklevel=2,
+        )
+
+    def remove(self, element: T) -> None:
+        self._validate_element(element)
+        native = object.__getattribute__(element, "_native")
+        if native is None:
+            raise ValueError(f"Cannot remove a {type(element).__name__} that is not in a document.")
+        self._lib.remove_child(native)
+        # call via object.__getattribute__ to avoid direct protected-member access
+        object.__getattribute__(element, "_mark_stale")()
+
+    def pop(self, index: int | None = None) -> T:
+        """Remove an element in a collection at a specified index.
+
+        Args:
+            index (int | None, optional): The index to delete an element at. Defaults to None.
+
+        Raises:
+            IndexError: Occurs if a provided index is outside of range of indexes of the collections.
+
+        Returns:
+            T: The element at the specified index.
+        """
+        index = index or -1
+        n = self._count()
+        if index < 0:
+            index = n + index
+        if not (0 <= index < n):
+            raise IndexError(f"index {index} out of range for collection of length {n}")
+        item = self._make_proxy(self._handle_at(index))
+        snap = item.copy()
+        self.remove(item)
+        return snap
+
+    def clear(self) -> None:
+        """Empties the elements of the collection."""
+        while self._count() > 0:
+            self.remove(self._make_proxy(self._handle_at(0)))
+
+    def index(self, element: T) -> int:
+        """Returns the index of the provided element inside of the collection.
+
+        Args:
+            element (T): The element to find the index of.
+
+        Raises:
+            ValueError: Occurs if the element provided does not exist in the collection.
+
+        Returns:
+            int: The index of the element in the collection.
+        """
+        for i, item in enumerate(self):
+            if item == element:
+                return i
+        raise ValueError(f"{element!r} is not in this collection")
+
+    # ------------------------------------------------------------------
+    # Dunders
+    # ------------------------------------------------------------------
+
+    def __len__(self) -> int:
+        return self._count()
+
+    def __iter__(self) -> Iterator[T]:
+        n = self._count()
+        for i in range(n):
+            yield self._make_proxy(self._handle_at(i))
+
+    def __reversed__(self) -> Iterator[T]:
+        n = self._count()
+        for i in range(n - 1, -1, -1):
+            yield self._make_proxy(self._handle_at(i))
+
+    def __contains__(self, element: object) -> bool:
+        if not isinstance(element, tuple(self._elem_types)):
+            return False
+        native = object.__getattribute__(element, "_native")
+        if native is None:
+            return False
+        return any(object.__getattribute__(item, "_native") == native for item in self)
+
+    def __iadd__(self, elements: Iterable[T]) -> Self:
+        self.extend(elements)
+        return self
+
+    def __getitem__(self, index: int | slice) -> T | DocumentView[T]:
+        if isinstance(index, slice):
+            indices = range(*index.indices(self._count()))
+            items = [self._make_proxy(self._handle_at(i)) for i in indices]
+            return _SliceView(
+                items, self._document, self._lib, self._elem_types, self._collection_name
+            )
+        n = self._count()
+        if index < 0:
+            index = n + index
+        if not (0 <= index < n):
+            raise IndexError(f"index {index} out of range for collection of length {n}")
+        return self._make_proxy(self._handle_at(index))
+
+
+class DocumentView[T: ProxyBase](CollectionMixin[T]):
+    """Live view over a typed subset of a document element's children.
+
+    All mutation and iteration methods reflect the live document state.
+    """
+
+    def __init__(
+        self,
+        parent_handle: int,
+        document: Document,
+        lib: Handle,
+        elem_types: tuple[type[T], ...],
+        collection_name: str,
+    ) -> None:
+        self._parent_handle = parent_handle
+        self._document = document
+        self._lib = lib
+        self._elem_types = elem_types
+        self._collection_name = collection_name
+
+    def __bool__(self) -> bool:
+        return self._count() > 0
+
+    def __or__[U: ProxyBase](self, other: DocumentView[U]) -> DocumentView[T | U]:
+        return _UnionView(
+            self._parent_handle,
+            self._document,
+            self._lib,
+            self._elem_types + other._elem_types,
+            "body",
+        )
+
+    def __repr__(self) -> str:
+        names = " | ".join(t.__name__ for t in self._elem_types)
+        try:
+            return f"DocumentView[{names}](len={len(self)})"
+        except Exception:
+            return f"DocumentView[{names}](<error>)"
+
+
+class _SliceView[T: ProxyBase](DocumentView[T]):
+    """A fixed-size view over a slice of a parent collection (snapshot of handles)."""
+
+    def __init__(
+        self,
+        items: list[T],
+        document: Document,
+        lib: Handle,
+        elem_types: tuple[type[T], ...],
+        collection_name: str,
+    ) -> None:
+        self._items = items
+        self._document = document
+        self._lib = lib
+        self._elem_types = elem_types
+        self._collection_name = collection_name
+
+    def _count(self) -> int:
+        return len(self._items)
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self._items)
+
+    def __getitem__(self, index: int | slice) -> T | DocumentView[T]:
+        if isinstance(index, slice):
+            return _SliceView(
+                self._items[index],
+                self._document,
+                self._lib,
+                self._elem_types,
+                self._collection_name,
+            )
+        return self._items[index]
+
+
+class _UnionView[T: ProxyBase](DocumentView[T]):
+    """A view over the full body, returning all matching element types."""
+
+    pass

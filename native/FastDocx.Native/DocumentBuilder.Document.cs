@@ -14,12 +14,11 @@ internal static unsafe partial class DocumentBuilder
             var wp = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
             var mainPart = wp.AddMainDocumentPart();
             mainPart.Document = new Document(new Body());
+            AddDefaultStyles(mainPart);
 
-            AddHeadingStyles(mainPart);
-
-            var handle = NextHandle();
-            SDocuments[handle] = new DocumentState(wp, stream);
-            return handle;
+            var h = NextHandle();
+            SElements[h] = new DocElem(new DocumentState(wp, stream));
+            return h;
         }
         catch
         {
@@ -31,7 +30,7 @@ internal static unsafe partial class DocumentBuilder
     {
         try
         {
-            var pathStr = System.Text.Encoding.UTF8.GetString(path, pathLen);
+            var pathStr = ReadStr(path, pathLen);
             var bytes = File.ReadAllBytes(pathStr);
             var stream = new MemoryStream(capacity: bytes.Length + 4096);
             stream.Write(bytes, 0, bytes.Length);
@@ -39,9 +38,9 @@ internal static unsafe partial class DocumentBuilder
 
             var wp = WordprocessingDocument.Open(stream, isEditable: true);
 
-            var handle = NextHandle();
-            SDocuments[handle] = new DocumentState(wp, stream);
-            return handle;
+            var h = NextHandle();
+            SElements[h] = new DocElem(new DocumentState(wp, stream));
+            return h;
         }
         catch
         {
@@ -49,16 +48,21 @@ internal static unsafe partial class DocumentBuilder
         }
     }
 
+    // edit_document behaves identically to open_document for handle registration;
+    // the Python layer remembers the edit path and saves-on-exit.
+    internal static nint EditDocument(byte* path, int pathLen) =>
+        OpenDocument(path, pathLen);
+
     internal static int SaveDocument(nint handle, byte* path, int pathLen)
     {
-        if (!SDocuments.TryGetValue(handle, out var state))
+        if (!SElements.TryGetValue(handle, out var elem) || elem is not DocElem d)
             return -1;
 
         try
         {
-            var pathStr = System.Text.Encoding.UTF8.GetString(path, pathLen);
-            state.Document.Save();
-            var bytes = state.Stream.ToArray();
+            var pathStr = ReadStr(path, pathLen);
+            d.State.Document.Save();
+            var bytes = d.State.Stream.ToArray();
             File.WriteAllBytes(pathStr, bytes);
             return 0;
         }
@@ -68,40 +72,34 @@ internal static unsafe partial class DocumentBuilder
         }
     }
 
-    internal static int SetDocumentMargins(nint handle, int top, int right, int bottom, int left)
+    internal static void Dispose(nint handle)
     {
-        if (!SDocuments.TryGetValue(handle, out var state))
-            return -1;
+        if (!SElements.TryRemove(handle, out var elem) || elem is not DocElem d)
+            return;
 
-        try
+        // Remove every child element registered under this document handle.
+        foreach (var kvp in SElements.ToArray())
         {
-            var body = state.Document.MainDocumentPart!.Document!.Body!;
-            var props = body.GetFirstChild<SectionProperties>() ?? new SectionProperties();
-            var margin = props.GetFirstChild<PageMargin>() ?? new PageMargin();
-
-            margin.Top = top;
-            margin.Right = (uint)right;
-            margin.Bottom = bottom;
-            margin.Left = (uint)left;
-
-            if (margin.Parent is null)
-                props.AppendChild(margin);
-
-            if (props.Parent is null)
-                body.AppendChild(props);
-
-            return 0;
+            if (kvp.Value.DocHandle == handle)
+            {
+                if (SElements.TryRemove(kvp.Key, out var child))
+                    RemoveReverseMapEntry(child);
+            }
         }
-        catch
-        {
-            return -1;
-        }
+
+        try { d.State.Document.Dispose(); } catch { /* best effort */ }
+        try { d.State.Stream.Dispose(); } catch { /* best effort */ }
     }
 
-    internal static void FreeDocument(nint handle)
+    private static void RemoveReverseMapEntry(ElemWrapper elem)
     {
-        if (!SDocuments.TryRemove(handle, out var state)) return;
-        state.Document.Dispose();
-        state.Stream.Dispose();
+        switch (elem)
+        {
+            case ParaElem p:  SParagraphHandles.TryRemove(p.Para, out _);  break;
+            case RunElem r:   SRunHandles.TryRemove(r.Run, out _);         break;
+            case TableElem t: STableHandles.TryRemove(t.Table, out _);     break;
+            case RowElem row: SRowHandles.TryRemove(row.Row, out _);       break;
+            case CellElem c:  SCellHandles.TryRemove(c.Cell, out _);       break;
+        }
     }
 }

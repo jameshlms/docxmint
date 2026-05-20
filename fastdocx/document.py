@@ -1,308 +1,337 @@
+"""Document — the top-level document object and body collection."""
+
 from __future__ import annotations
 
 import contextlib
-import os
-import tempfile
-from typing import IO
+import threading
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
-from fastdocx._native.loader import get_lib
-from fastdocx.enums import Alignment
-from fastdocx.errors import NativeRuntimeError
-from fastdocx.paragraph import Paragraph, ParagraphView
-from fastdocx.table import Table
+import fastdocx._native.handle as _handle_mod
+from fastdocx._attrs import RawAttrMixin
+from fastdocx._block import BlockContainerMixin
+from fastdocx._native.handle import Handle
+from fastdocx._proxy.base import ProxyBase
+from fastdocx.collection import CollectionMixin
+from fastdocx.errors import DocumentClosedError
+
+if TYPE_CHECKING:
+    from fastdocx.collection import DocumentView
+    from fastdocx.section import Section
+    from fastdocx.styles import StyleCollection
+
+DocumentElementT = TypeVar("DocumentElementT", bound="ProxyBase")
+
+_active_count = 0
+_active_count_lock = threading.Lock()
 
 
-class Document:
-    """Top-level DOCX document object.
+class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
+    """A DOCX document backed by the FastDocx native library.
 
-    Use as a context manager for automatic cleanup::
+    The document itself is the body collection — iterate it, append to it,
+    and access filtered views via `.paragraphs`, `.tables`, etc.
 
-        with Document() as doc:
-            doc.add_heading("My Report", level=1)
-            doc.add_paragraph("Hello world", bold=True)
-            table = doc.add_table(rows=2, cols=2)
-            table[0, 0].text = "Name"
-            doc.save("output.docx")
+    Use as a context manager for deterministic cleanup::
 
-    Or manage the lifecycle explicitly::
+        with Document.open("report.docx") as doc:
+            doc.paragraphs.first.text = "Updated"
+            doc.save()
+
+    Or without a context manager (requires explicit close or GC)::
 
         doc = Document()
-        doc.add_paragraph("Hello")
+        doc.paragraphs.append(Paragraph("Hello"))
         doc.save("output.docx")
         doc.close()
-
-    Pass a file path or file-like object to open an existing document::
-
-        doc = Document("existing.docx")
-        with open("existing.docx", "rb") as f:
-            doc = Document(f)
     """
 
-    def __init__(self, source: str | os.PathLike[str] | IO[bytes] | None = None) -> None:
-        self._lib = get_lib()
-        self._handle: int | None = None
+    _lib: Handle
+    _handle: int
+    _path: str | None
+    _edit_path: str | None
+    _open: bool
+    _collection_name = "body"
 
-        if source is None:
-            handle = self._lib.create_document()
+    def __init__(self) -> None:
+        lib = _handle_mod.get_handle()
+        handle = lib.create_document()
+        self._setattr("_lib", lib)
+        self._setattr("_handle", handle)
+        self._setattr("_path", None)
+        self._setattr("_edit_path", None)
+        self._setattr("_open", True)
 
-            if handle == 0:
-                raise NativeRuntimeError("native create_document returned a null handle")
+    @classmethod
+    def open(cls, path: str) -> Document:
+        """Open an existing document for reading or writing."""
+        lib = _handle_mod.get_handle()
+        handle = lib.open_document(path)
+        doc = cls.__new__(cls)
+        doc._setattr("_lib", lib)
+        doc._setattr("_handle", handle)
+        doc._setattr("_path", path)
+        doc._setattr("_edit_path", None)
+        doc._setattr("_open", True)
+        return doc
 
-        elif isinstance(source, (str, os.PathLike)):
-            encoded = os.fsencode(source)
-            handle = self._lib.open_document(encoded, len(encoded))
+    @classmethod
+    def edit(cls, path: str) -> Document:
+        """Open a document for in-place editing; saves back on context manager exit."""
+        lib = _handle_mod.get_handle()
+        handle = lib.open_document(path)
+        doc = cls.__new__(cls)
+        doc._setattr("_lib", lib)
+        doc._setattr("_handle", handle)
+        doc._setattr("_path", path)
+        doc._setattr("_edit_path", path)
+        doc._setattr("_open", True)
+        return doc
 
-            if handle == 0:
-                raise NativeRuntimeError(f"native open_document failed for path {str(source)!r}")
+    # ------------------------------------------------------------------
+    # CollectionMixin interface
+    # ------------------------------------------------------------------
 
-        elif hasattr(source, "read") and callable(source.read):
-            data = source.read()
+    @property
+    def _parent_handle(self) -> int:
+        return self._require_open()
 
-            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                tmp.write(data)
-                tmp_path = tmp.name
+    @property
+    def _document(self) -> Document:
+        return self
 
-            try:
-                encoded = os.fsencode(tmp_path)
-                handle = self._lib.open_document(encoded, len(encoded))
+    @property
+    def _elem_types(self) -> tuple[type, ...]:
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.table import Table
 
-            finally:
-                os.unlink(tmp_path)
+        return (Paragraph, Table)
 
-            if handle == 0:
-                raise NativeRuntimeError("native open_document failed for file-like source")
+    # ------------------------------------------------------------------
+    # BlockContainerMixin hook
+    # ------------------------------------------------------------------
 
-        else:
-            raise TypeError(
-                "source must be a file path, file-like object, or None, got "
-                f"{type(source).__name__!r}"
-            )
-
-        self._handle = handle
+    def _block_context(self) -> tuple[int, Any, Any]:
+        return (self._require_open(), self._getattr("_lib"), self)
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def close(self) -> None:
-        """Free the native document handle. The document cannot be used after this."""
-        if self._handle is not None:
-            self._lib.free_document(self._handle)
-            self._handle = None
+    @property
+    def is_open(self) -> bool:
+        return bool(self._getattr("_open"))
 
-    def __enter__(self) -> Document:
+    @property
+    def path(self) -> str | None:
+        return self._getattr("_path")
+
+    def close(self) -> None:
+        """Release the native document handle. Idempotent."""
+        if self._getattr("_open"):
+            lib: Handle = self._getattr("_lib")
+            handle: int = self._getattr("_handle")
+            self._setattr("_open", False)
+            lib.dispose(handle)
+
+    def __enter__(self) -> Self:
+        global _active_count
+        with _active_count_lock:
+            _active_count += 1
         return self
 
-    def __exit__(self, *_) -> None:
+    def __exit__(self, *_: object) -> None:
+        global _active_count
+        edit_path: str | None = self._getattr("_edit_path")
+        if edit_path and self._getattr("_open"):
+            self.save(edit_path)
         self.close()
+        with _active_count_lock:
+            _active_count -= 1
 
     def __del__(self) -> None:
+        try:
+            if self._getattr("_open"):
+                import warnings
+
+                warnings.warn(
+                    f"Unclosed {self!r}. Use a context manager or call .close().",
+                    ResourceWarning,
+                    stacklevel=2,
+                    source=self,
+                )
+        except Exception:
+            pass
         with contextlib.suppress(Exception):
             self.close()
 
     def _require_open(self) -> int:
-        if self._handle is None:
-            raise RuntimeError("Document is closed")
-        return self._handle
-
-    # ------------------------------------------------------------------
-    # Write operations
-    # ------------------------------------------------------------------
-
-    def add_paragraph(self, text: str = "", style: str | None = None) -> Paragraph:
-        """Add a paragraph and return a :class:`~fastdocx.paragraph.Paragraph`.
-
-        If *text* is provided a single run is added automatically. For multiple
-        runs with different formatting, call
-        :meth:`~fastdocx.paragraph.Paragraph.add_run` on the returned paragraph::
-
-            p = doc.add_paragraph("Intro: ", style="Normal")
-            p.add_run("bold part").bold = True
-            p.add_run(" normal part")
-
-        Args:
-            text: Paragraph text (creates one implicit run). Pass ``""`` for
-                an empty paragraph.
-            style: An optional Word paragraph style identifier (e.g. ``"Normal"``).
-        """
-        encoded_style = style.encode("utf-8") if style else b""
-        handle = self._lib.add_paragraph(
-            self._require_open(),
-            encoded_style,
-            len(encoded_style),
-        )
-        if handle == 0:
-            raise NativeRuntimeError("native add_paragraph failed")
-        para = Paragraph._create(handle=handle, lib=self._lib)
-        if text:
-            para.add_run(text)
-        return para
-
-    def add_heading(self, text: str, level: int = 1) -> Paragraph:
-        """Add a heading paragraph and return a :class:`~fastdocx.paragraph.Paragraph`.
-
-        Args:
-            text: The heading text.
-            level: Heading level 1-6 (default 1).
-        """
-        if not 1 <= level <= 6:
-            raise ValueError(f"Heading level must be 1–6, got {level!r}")
-
-        encoded_text = text.encode("utf-8")
-        handle = self._lib.add_heading(self._require_open(), encoded_text, len(encoded_text), level)
-        if handle == 0:
-            raise NativeRuntimeError("native add_heading failed")
-        return Paragraph._create(handle=handle, lib=self._lib)
-
-    def register_paragraph_style(
-        self,
-        style_id: str,
-        *,
-        based_on: str | None = None,
-        bold: bool = False,
-        italic: bool = False,
-        font_size: int | None = None,
-        color: str | None = None,
-        alignment: Alignment | None = None,
-        space_before: int | None = None,
-        space_after: int | None = None,
-    ) -> str:
-        """Register a custom paragraph style and return its style ID.
-
-        Once registered, pass the returned string as the ``style`` argument to
-        :meth:`add_paragraph`.
-
-        Args:
-            style_id: Unique style identifier (e.g. ``"MyStyle"``).
-            based_on: Style ID to inherit from (e.g. ``"Normal"``).
-            bold: Whether the style renders text bold.
-            italic: Whether the style renders text italic.
-            font_size: Font size in points.
-            color: RGB hex color string (e.g. ``"FF0000"``).
-            alignment: An :class:`~fastdocx.enums.Alignment` member.
-            space_before: Space before paragraph in twips.
-            space_after: Space after paragraph in twips.
-        """
-        if alignment is not None and not isinstance(alignment, Alignment):
-            raise ValueError(f"alignment must be an Alignment member, got {alignment!r}")
-
-        rc = self._lib.register_paragraph_style(
-            self._require_open(),
-            style_id,
-            based_on,
-            bold,
-            italic,
-            font_size * 2 if font_size is not None else 0,
-            color,
-            alignment.value if alignment else 0,
-            space_before or 0,
-            space_after or 0,
-        )
-        if rc != 0:
-            raise NativeRuntimeError(
-                f"native register_paragraph_style failed for style {style_id!r}"
+        if not self._getattr("_open"):
+            raise DocumentClosedError(
+                "Document is closed. "
+                "Call .copy() inside the context manager to use data outside it."
             )
-        return style_id
+        return self._getattr("_handle")
 
-    def add_table(
-        self,
-        rows: int,
-        cols: int,
-        data: list[list[str]] | None = None,
-        *,
-        strict: bool = True,
-    ) -> Table:
-        """Add a table and return a :class:`~fastdocx.table.Table`.
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
 
-        Args:
-            rows: Number of rows.
-            cols: Number of columns.
-            data: Optional 2-D list of strings used to pre-populate cells.
-            strict: If ``True`` (default), raises ``ValueError`` when the number
-                of rows in ``data`` does not match ``rows``. If ``False``,
-                missing rows are filled with blank cells and extra rows are
-                truncated.
+    def save(self, path: str | None = None) -> None:
+        """Save the document.
+
+        If *path* is None and the document was opened from or saved to a path,
+        saves back to that path. Otherwise *path* must be provided.
         """
-        if rows <= 0 or cols <= 0:
+        target = path or self._getattr("_path")
+        if target is None:
             raise ValueError(
-                f"rows and cols must be positive integers, got rows={rows!r}, cols={cols!r}"
+                "No path provided and document has no associated path. Pass a path to save()."
             )
+        lib: Handle = self._getattr("_lib")
+        lib.save_document(self._require_open(), target)
+        self._setattr("_path", target)
 
-        if data is not None:
-            if len(data) != rows:
-                if bool(strict):
-                    raise ValueError(f"data has {len(data)} rows but rows={rows!r}")
-                data = (data + [[]] * rows)[:rows]
-            data = [
-                row + [""] * (cols - len(row)) if len(row) < cols else row[:cols] for row in data
-            ]
-
-        if data is not None:
-            handle = self._lib.add_table_with_data(self._require_open(), data, rows, cols)
-            if handle == 0:
-                raise NativeRuntimeError("native add_table_with_data failed")
-        else:
-            handle = self._lib.add_table(self._require_open(), rows, cols)
-            if handle == 0:
-                raise NativeRuntimeError("native add_table failed")
-
-        return Table(handle=handle, rows=rows, cols=cols, lib=self._lib)
-
-    def remove_paragraph(self, index: int) -> None:
-        """Remove the paragraph at *index* from the document body.
-
-        Uses the same zero-based index as :attr:`paragraphs`::
-
-            doc.add_paragraph("Draft line")
-            doc.add_paragraph("Keep this")
-            doc.remove_paragraph(0)   # removes "Draft line"
-
-        Args:
-            index: Zero-based position of the paragraph to remove.
-
-        Raises:
-            IndexError: If *index* is out of range.
-        """
-        handle = self._require_open()
-        rc = self._lib.remove_paragraph(handle, index)
-        if rc == -2:
-            raise IndexError(f"paragraph index {index} is out of range")
-        if rc != 0:
-            raise NativeRuntimeError(f"native remove_paragraph failed (rc={rc})")
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
     @property
-    def paragraphs(self) -> list[ParagraphView]:
-        """Return a snapshot of every paragraph in the document body.
+    def styles(self) -> StyleCollection:
+        from fastdocx.styles import StyleCollection
 
-        Each entry is a :class:`~fastdocx.paragraph.ParagraphView` with
-        ``text`` and ``style`` attributes, mirroring the ``python-docx``
-        interface::
+        return StyleCollection(self._require_open(), self)
 
-            for para in doc.paragraphs:
-                print(para.text, para.style)
-        """
-        handle = self._require_open()
-        count = self._lib.get_paragraph_count(handle)
-        if count < 0:
-            raise NativeRuntimeError("native get_paragraph_count failed")
-        return [
-            ParagraphView(
-                text=self._lib.get_paragraph_text(handle, i),
-                style=self._lib.get_paragraph_style(handle, i),
-            )
-            for i in range(count)
-        ]
+    @property
+    def default_style(self) -> object:
+        return self.styles.default
 
-    def save(self, path: str | os.PathLike[str]) -> None:
-        """Save the document to *path*.
+    @property
+    def author(self) -> str:
+        lib: Handle = self._getattr("_lib")
+        return lib.get_str(self._require_open(), "author")
 
-        The document remains open after saving and can continue to be modified.
-        Call :meth:`close` (or use a ``with`` block) to release the native handle.
+    @author.setter
+    def author(self, value: str) -> None:
+        lib: Handle = self._getattr("_lib")
+        lib.set_str(self._require_open(), "author", value)
 
-        Args:
-            path: Destination file path (will be created or overwritten).
-        """
-        encoded_path = os.fsencode(path)
-        rc = self._lib.save_document(self._require_open(), encoded_path, len(encoded_path))
-        if rc != 0:
-            raise NativeRuntimeError(f"native save_document failed for path {path!r}")
+    @property
+    def title(self) -> str:
+        lib: Handle = self._getattr("_lib")
+        return lib.get_str(self._require_open(), "title")
+
+    @title.setter
+    def title(self, value: str) -> None:
+        lib: Handle = self._getattr("_lib")
+        lib.set_str(self._require_open(), "title", value)
+
+    @property
+    def subject(self) -> str:
+        lib: Handle = self._getattr("_lib")
+        return lib.get_str(self._require_open(), "subject")
+
+    @property
+    def description(self) -> str:
+        lib: Handle = self._getattr("_lib")
+        return lib.get_str(self._require_open(), "description")
+
+    @property
+    def language(self) -> str:
+        lib: Handle = self._getattr("_lib")
+        return lib.get_str(self._require_open(), "language")
+
+    # ------------------------------------------------------------------
+    # Filtered views
+    # ------------------------------------------------------------------
+
+    @property
+    def sections(self) -> DocumentView[Section]:
+        from fastdocx.section import Section
+
+        return self._block_view(Section, "sections")
+
+    @sections.setter
+    def sections(self, _: object) -> None:
+        pass  # __iadd__ already mutated the native collection
+
+    # ------------------------------------------------------------------
+    # group() — typed filtered view builder
+    # ------------------------------------------------------------------
+
+    def group[T: ProxyBase](self, types: list[type[T]]) -> DocumentView[T]:
+        from fastdocx.collection import DocumentView
+
+        lib: Handle = self._getattr("_lib")
+        return DocumentView(
+            self._require_open(),
+            self,
+            lib,
+            tuple(types),
+            "body",
+        )
+
+    # ------------------------------------------------------------------
+    # Dunders
+    # ------------------------------------------------------------------
+
+    def __bool__(self) -> bool:
+        return bool(self._getattr("_open"))
+
+    def __contains__(self, element: object) -> bool:
+        from fastdocx._proxy.base import ProxyBase
+
+        if not isinstance(element, ProxyBase):
+            return False
+        native = object.__getattribute__(element, "_native")
+        if native is None:
+            return False
+        doc = object.__getattribute__(element, "_document")
+        return doc is self
+
+    @overload
+    def __getitem__(self, key: int) -> ProxyBase: ...
+    @overload
+    def __getitem__(self, key: slice) -> DocumentView[ProxyBase]: ...
+    @overload
+    def __getitem__(self, key: type[DocumentElementT]) -> DocumentView[DocumentElementT]: ...
+
+    def __getitem__(self, key: int | slice | type) -> ProxyBase | DocumentView[Any]:
+        if isinstance(key, type):
+            return self._block_view(key, _collection_for_type(key))
+        return super().__getitem__(key)  # type: ignore[return-value]
+
+    def __iadd__(self, elements: Iterable[ProxyBase]) -> Self:  # type: ignore[override]
+        self.extend(elements)
+        return self
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Document):
+            return NotImplemented
+        return self._getattr("_handle") == other._getattr("_handle")
+
+    def __hash__(self) -> int:
+        return hash(self._getattr("_handle"))
+
+    def __repr__(self) -> str:
+        path = self._getattr("_path")
+        open_ = self._getattr("_open")
+        try:
+            n = len(self) if open_ else "?"
+        except Exception:
+            n = "?"
+        return f"<Document path={path!r} elements={n} open={open_}>"
+
+
+def _collection_for_type(t: type) -> str:
+    from fastdocx.paragraph import Paragraph
+    from fastdocx.section import Section
+    from fastdocx.table import Table
+
+    if t is Paragraph:
+        return "paragraphs"
+    if t is Table:
+        return "tables"
+    if t is Section:
+        return "sections"
+    return "body"

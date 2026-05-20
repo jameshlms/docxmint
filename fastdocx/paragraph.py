@@ -1,104 +1,182 @@
+"""Paragraph proxy."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Self
 
-from fastdocx.run import Run
+from fastdocx._proxy.base import ProxyBase
+from fastdocx._proxy.descriptors import BoolProperty, ChoiceProperty, StringProperty
+from fastdocx.collection import DocumentView
 
 if TYPE_CHECKING:
-    from fastdocx._native.bindings import NativeLib
-
-_SENTINEL = object()
+    from fastdocx.run import Run
 
 
-@dataclass(frozen=True)
-class ParagraphView:
-    """Read-only view of a paragraph as it exists in the document.
+class Paragraph(ProxyBase):
+    """A paragraph element — either a live proxy or a construction object.
 
-    Returned by :attr:`Document.paragraphs`.  Mirrors the interface of
-    ``python-docx``'s ``Paragraph`` for easy migration::
+    **Construction object** (before appending to a document)::
 
-        for para in doc.paragraphs:
-            print(para.text, para.style)
+        para = Paragraph("Hello", style="Heading1", alignment="center")
+        doc.paragraphs.append(para)
+
+    **Live proxy** (after appending, or from doc.paragraphs[i])::
+
+        para = doc.paragraphs[0]
+        para.text = "Updated"
+        para.alignment = "center"
     """
 
-    text: str
-    """Plain text content (all runs concatenated, no formatting)."""
+    _child_type_name = "paragraph"
 
-    style: str
-    """Paragraph style ID (e.g. ``"Heading1"``, ``"Normal"``), or ``""`` if none."""
+    # Descriptors — one line per property, routing handled automatically
+    text = StringProperty("text", default="")
+    style = StringProperty("style", default="Normal")
+    alignment: ChoiceProperty[Literal["left", "right", "center", "justify"]] = ChoiceProperty(
+        "alignment", ("left", "right", "center", "justify")
+    )
+    keep_together = BoolProperty("keep_together")
+    keep_with_next = BoolProperty("keep_with_next")
+    page_break_before = BoolProperty("page_break_before")
 
-
-class Paragraph:
-    """Represents a paragraph element in a DOCX document.
-
-    Instances are created by :meth:`Document.add_paragraph` and
-    :meth:`Document.add_heading`; they cannot be constructed directly.
-
-    Use :meth:`add_run` to append runs of text with independent formatting::
-
-        p = doc.add_paragraph("Intro: ", style="Normal")
-        p.add_run("bold part").bold = True
-        p.add_run(" normal part")
-    """
-
-    def __init__(self, *, handle: int, lib: NativeLib, _guard: object = None) -> None:
-        if _guard is not _SENTINEL:
-            raise TypeError(
-                "Paragraph cannot be instantiated directly — use Document.add_paragraph() "
-                "or Document.add_heading()"
-            )
-        self._handle = handle
-        self._lib = lib
-        self._runs: list[Run] = []
+    def __init__(
+        self,
+        text: str = "",
+        *,
+        style: str = "Normal",
+        alignment: Literal["left", "right", "center", "justify"] | None = None,
+        keep_together: bool = False,
+        keep_with_next: bool = False,
+        page_break_before: bool = False,
+    ) -> None:
+        super().__init__()
+        data: dict[str, Any] = {}
+        if text:
+            data["text"] = text
+        if style and style != "Normal":
+            data["style"] = style
+        if alignment is not None:
+            data["alignment"] = alignment
+        if keep_together:
+            data["keep_together"] = True
+        if keep_with_next:
+            data["keep_with_next"] = True
+        if page_break_before:
+            data["page_break_before"] = True
+        self._setattr("_data", data)
 
     @classmethod
-    def _create(cls, handle: int, lib: NativeLib) -> Paragraph:
-        return cls(handle=handle, lib=lib, _guard=_SENTINEL)
+    def horizontal_line(
+        cls,
+        style: Literal["single"] = "single",
+        width: int = 6,
+        color: str = "auto",
+    ) -> Paragraph:
+        """Create a horizontal rule paragraph."""
+        para = cls.__new__(cls)
+        para._setattr("_native", None)
+        para._setattr("_document", None)
+        para._setattr("_stale", False)
+        para._setattr("_data", {"_horizontal_line": True})
+        return para
+
+    # ------------------------------------------------------------------
+    # Runs collection
+    # ------------------------------------------------------------------
 
     @property
-    def handle(self) -> int:
-        return self._handle
-
-    @property
-    def text(self) -> str:
-        """The full text of the paragraph (concatenation of all run texts)."""
-        return "".join(run.text for run in self._runs)
-
-    @property
-    def runs(self) -> list[Run]:
-        return list(self._runs)
-
-    def add_run(self, text: str = "", style: str | None = None) -> Run:
-        """Append a run of text and return the :class:`~fastdocx.run.Run`.
-
-        Set formatting on the returned run::
-
-            run = p.add_run("Hello")
-            run.bold = True
-            run.font.size = 14
-
-        Args:
-            text: The run text.
-            style: Optional character style name.
-        """
-        from fastdocx.errors import NativeRuntimeError
-
-        encoded_text = text.encode("utf-8")
-        run_handle = self._lib.add_run(
-            self._handle,
-            encoded_text,
-            len(encoded_text),
-            -1,  # bold: inherit
-            -1,  # italic: inherit
-            0,   # font_size: inherit
+    def runs(self) -> DocumentView[Run]:
+        if not self._is_live:
+            return []  # type: ignore[return-value]  # construction objects have no runs yet
+        self._check_valid()
+        from fastdocx.run import Run
+        return DocumentView(
+            self._getattr("_native"),
+            self._getattr("_document"),
+            self._get_lib(),
+            (Run,),
+            "runs",
         )
-        if run_handle == 0:
-            raise NativeRuntimeError("native add_run failed")
 
-        run = Run._create(handle=run_handle, text=text, lib=self._lib)
-        self._runs.append(run)
-        return run
+    # ------------------------------------------------------------------
+    # Builder methods (return Self for chaining)
+    # ------------------------------------------------------------------
+
+    def add_run(self, text: str = "") -> Run:
+        """Append a new run and return the live proxy."""
+        from fastdocx.collection import DocumentView
+        from fastdocx.run import Run
+        if not self._is_live:
+            raise ValueError("Cannot add_run to a paragraph that is not yet in a document.")
+        view = DocumentView(
+            self._getattr("_native"),
+            self._getattr("_document"),
+            self._get_lib(),
+            (Run,),
+            "runs",
+        )
+        return view._append_one(Run(text))
+
+    def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self:
+        self.alignment = alignment
+        return self
+
+    def set_style(self, style: str) -> Self:
+        self.style = style
+        return self
+
+    # ------------------------------------------------------------------
+    # Materialisation
+    # ------------------------------------------------------------------
+
+    def _copy_data(self) -> dict[str, Any]:
+        if not self._is_live:
+            return dict(self._getattr("_data"))
+        return {
+            "text": self.text,
+            "style": self.style,
+            "alignment": self.alignment,
+            "keep_together": self.keep_together,
+            "keep_with_next": self.keep_with_next,
+            "page_break_before": self.page_break_before,
+            "runs": [r.copy() for r in self.runs],
+        }
+
+    # ------------------------------------------------------------------
+    # Dunders
+    # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        return f"Paragraph(handle={self._handle!r}, runs={len(self._runs)})"
+        native = self._getattr("_native")
+        if native is None:
+            data = self._getattr("_data")
+            text = data.get("text", "")
+            return f"Paragraph({text!r})"
+        if self._getattr("_stale"):
+            return "Paragraph(<stale>)"
+        try:
+            return f"Paragraph(text={self.text!r}, handle={native!r})"
+        except Exception:
+            return f"Paragraph(handle={native!r})"
+
+    def __str__(self) -> str:
+        return self.text
+
+    def __bool__(self) -> bool:
+        return bool(self.text)
+
+    def __len__(self) -> int:
+        if not self._is_live:
+            data = self._getattr("_data")
+            return len(data.get("runs", []))
+        try:
+            return len(self.runs)
+        except Exception:
+            return 0
+
+    def __iter__(self) -> Iterator[Run]:
+        return iter(self.runs)
+
+    def __contains__(self, run: object) -> bool:
+        return run in self.runs
+
+

@@ -1,50 +1,146 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import ClassVar
 
 
+@dataclass(frozen=True)
 class Color:
-    """Represents a color in RGB format."""
+    """An immutable RGB colour value (each component 0-255).
 
-    def __init__(self, r: int, g: int, b: int) -> None:
-        if not all(isinstance(c, int) and 0 <= c <= 255 for c in (r, g, b)):
-            raise ValueError(
-                f"Color components must be integers in the range 0-255, got ({r}, {g}, {b})"
-            )
+    `str(color)` returns bare `RRGGBB` hex for the native layer.
+    `color.to_hex()` returns `#RRGGBB` for human-facing output.
+    """
 
-        self.r = r
-        self.g = g
-        self.b = b
+    r: int
+    g: int
+    b: int
 
-    @staticmethod
-    def from_hex(hex_str: str | Sequence[int]) -> Color:
-        """Create a Color from a hex string like '#RRGGBB'."""
-        if isinstance(hex_str, str):
-            if not hex_str.startswith("#") or len(hex_str) != 7:
-                raise ValueError(
-                    f"Hex color must be a string in the format '#RRGGBB', got {hex_str!r}"
-                )
-            try:
-                return Color(int(hex_str[1:3], 16), int(hex_str[3:5], 16), int(hex_str[5:7], 16))
-            except ValueError as e:
-                raise ValueError(f"Invalid hex color string: {hex_str!r}") from e
-        elif isinstance(hex_str, Sequence):
-            if len(hex_str) != 3:
-                raise ValueError(f"Hex color must be a sequence of 3 integers, got {hex_str!r}")
-            return Color(*hex_str)
-        else:
-            raise TypeError(
-                f"Hex color must be a string or sequence of integers, got {type(hex_str)!r}"
-            )
+    BLACK: ClassVar[Color]
+    WHITE: ClassVar[Color]
+    RED: ClassVar[Color]
+    GREEN: ClassVar[Color]
+    BLUE: ClassVar[Color]
+    YELLOW: ClassVar[Color]
+    CYAN: ClassVar[Color]
+    MAGENTA: ClassVar[Color]
+
+    def __post_init__(self) -> None:
+        for name, v in zip("rgb", (self.r, self.g, self.b), strict=False):
+            if not (0 <= v <= 255):
+                raise ValueError(f"Color.{name} must be an integer 0-255, got {v!r}")
+
+    @classmethod
+    def from_hex(cls, value: str) -> Color:
+        """Parse `'#RRGGBB'` or `'RRGGBB'`."""
+        s = value.lstrip("#")
+        if len(s) != 6:
+            raise ValueError(f"Invalid hex color {value!r}: expected 6 hex digits")
+        try:
+            return cls(int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+        except ValueError:
+            raise ValueError(f"Invalid hex color {value!r}") from None
+
+    def to_hex(self) -> str:
+        """Return `'#RRGGBB'`."""
+        return f"#{self.r:02X}{self.g:02X}{self.b:02X}"
+
+    def to_tuple(self) -> tuple[int, int, int]:
+        return (self.r, self.g, self.b)
+
+    def __str__(self) -> str:
+        """Bare `'RRGGBB'` — used by the native layer."""
+        return f"{self.r:02X}{self.g:02X}{self.b:02X}"
 
     def __repr__(self) -> str:
-        return f"Color(r={self.r}, g={self.g}, b={self.b})"
+        return f"Color({self.r}, {self.g}, {self.b})"
+
+    def __iter__(self) -> Iterator[int]:
+        """Yield r, g, b — enables `r, g, b = color` unpacking."""
+        yield self.r
+        yield self.g
+        yield self.b
+
+    @property
+    def luminance(self) -> float:
+        """Relative luminance (0.0 = black, 1.0 = white), per WCAG 2.x."""
+
+        def _lin(c: int) -> float:
+            s = c / 255.0
+            return s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4
+
+        return 0.2126 * _lin(self.r) + 0.7152 * _lin(self.g) + 0.0722 * _lin(self.b)
+
+    @property
+    def is_dark(self) -> bool:
+        """True when luminance < 0.5."""
+        return self.luminance < 0.5
+
+    @property
+    def is_light(self) -> bool:
+        """True when luminance >= 0.5."""
+        return not self.is_dark
+
+    def blend(self, other: Color, t: float = 0.5) -> Color:
+        """Linearly interpolate toward *other* (t=0 → self, t=1 → other)."""
+        t = max(0.0, min(1.0, t))
+        return Color(
+            round(self.r + (other.r - self.r) * t),
+            round(self.g + (other.g - self.g) * t),
+            round(self.b + (other.b - self.b) * t),
+        )
+
+    def lighten(self, amount: float = 0.1) -> Color:
+        """Return a lighter version by blending toward white."""
+        return self.blend(Color(255, 255, 255), amount)
+
+    def darken(self, amount: float = 0.1) -> Color:
+        """Return a darker version by blending toward black."""
+        return self.blend(Color(0, 0, 0), amount)
+
+    # ------------------------------------------------------------------
+    # Wire format
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _normalize(cls, value: object) -> str | None:
+        """Normalize a color input to bare ``RRGGBB`` for the native layer.
+
+        Accepts ``None``, ``'auto'``, a ``Color`` instance, ``'#RRGGBB'``,
+        or ``'RRGGBB'``. Raises ``ValueError`` for anything else.
+        """
+        if value is None:
+            return None
+        if value == "auto":
+            return "auto"
+        if isinstance(value, cls):
+            return str(value)
+        if isinstance(value, str):
+            s = value.lstrip("#")
+            if len(s) == 6:
+                try:
+                    int(s, 16)
+                    return s.upper()
+                except ValueError:
+                    pass
+        raise ValueError(
+            f"Invalid color {value!r}. "
+            "Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
+        )
+
+
+Color.BLACK = Color(0, 0, 0)
+Color.WHITE = Color(255, 255, 255)
+Color.RED = Color(255, 0, 0)
+Color.GREEN = Color(0, 128, 0)
+Color.BLUE = Color(0, 0, 255)
+Color.YELLOW = Color(255, 255, 0)
+Color.CYAN = Color(0, 255, 255)
+Color.MAGENTA = Color(255, 0, 255)
 
 
 def _positive_float(name: str, value: float) -> float:
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"{name} value must be a number, got {type(value)!r}")
     if value < 0:
         raise ValueError(f"{name} value cannot be negative, got {value}")
     return float(value)
@@ -55,7 +151,14 @@ class _Length:
     value: float
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "value", _positive_float(type(self).__name__, self.value))
+        object.__setattr__(
+            self,
+            "value",
+            _positive_float(
+                name=type(self).__name__,
+                value=self.value,
+            ),
+        )
 
     @property
     def points(self) -> float:
