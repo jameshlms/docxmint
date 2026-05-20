@@ -22,11 +22,11 @@ _SKIP_REASON = "Native FastDOCX binary not available on this platform"
 
 
 def _native_available() -> bool:
-    """Return True only if loader.get_lib() succeeds without error."""
+    """Return True only if the native handle loads without error."""
     try:
-        from fastdocx._native.loader import get_lib
+        from fastdocx._native.handle import get_handle
 
-        get_lib()
+        get_handle()
         return True
     except RuntimeError:
         return False
@@ -121,6 +121,202 @@ def test_table_roundtrip() -> None:
         assert tbl.cell(0, 1).text == "Revenue"
         assert tbl.cell(1, 0).text == "North"
         assert tbl.cell(1, 1).text == "$1.2M"
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_post_append_mutation_roundtrip() -> None:
+    """Mutating a proxy after append (the _attach behavior) is reflected in the saved file."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        para = Paragraph("original")
+        doc.paragraphs.append(para)
+        para.text = "mutated after append"  # crosses FFI via LIVE proxy
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        texts = [p.text for p in loaded.paragraphs]
+        assert "mutated after append" in texts
+        assert "original" not in texts
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_run_formatting_roundtrip() -> None:
+    """Bold, italic, font size, and font name survive a save/load cycle."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+    from fastdocx.run import Run
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        para = Paragraph()
+        doc.paragraphs.append(para)
+        run = Run("styled text", bold=True, italic=True, font_size=14.0, font_name="Arial")
+        para.runs.append(run)
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        runs = [r for p in loaded.paragraphs for r in p.runs if r.text == "styled text"]
+        assert runs, "Expected run with 'styled text' not found"
+        r = runs[0]
+        assert r.bold is True
+        assert r.italic is True
+        assert r.font.name == "Arial"
+        # python-docx stores font size in EMUs; 14pt = 177800
+        assert r.font.size is not None
+        assert abs(r.font.size.pt - 14.0) < 0.1
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_post_append_run_mutation_roundtrip() -> None:
+    """Mutating a Run proxy after append reflects in the saved file."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+    from fastdocx.run import Run
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        para = Paragraph()
+        doc.paragraphs.append(para)
+        run = Run("initial")
+        para.runs.append(run)
+        run.text = "updated"
+        run.bold = True
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        runs = [r for p in loaded.paragraphs for r in p.runs if r.text == "updated"]
+        assert runs, "Expected run with text 'updated' not found"
+        assert runs[0].bold is True
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_paragraph_alignment_roundtrip() -> None:
+    """Paragraph alignment values survive a save/load cycle."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        doc.paragraphs.append(Paragraph("left"))
+        doc.paragraphs.append(Paragraph("centered", alignment="center"))
+        doc.paragraphs.append(Paragraph("right aligned", alignment="right"))
+        doc.paragraphs.append(Paragraph("justified", alignment="justify"))
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        from docx.enum.text import WD_ALIGN_PARAGRAPH  # type: ignore[import-untyped]
+        by_text = {p.text: p.alignment for p in loaded.paragraphs if p.text}
+        assert by_text["centered"] == WD_ALIGN_PARAGRAPH.CENTER
+        assert by_text["right aligned"] == WD_ALIGN_PARAGRAPH.RIGHT
+        assert by_text["justified"] == WD_ALIGN_PARAGRAPH.JUSTIFY
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_document_metadata_roundtrip() -> None:
+    """Author and title document properties survive a save/load cycle."""
+    from fastdocx import Document
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        doc.author = "Jane Smith"
+        doc.title = "Q1 Report"
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        assert loaded.core_properties.author == "Jane Smith"
+        assert loaded.core_properties.title == "Q1 Report"
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_unicode_content_roundtrip() -> None:
+    """Non-ASCII text survives a save/load cycle."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        texts = [
+            "Héllo Wörld",          # Latin extended
+            "日本語テスト",           # Japanese
+            "Привет мир",           # Cyrillic
+            "مرحبا بالعالم",        # Arabic
+        ]
+        for t in texts:
+            doc.paragraphs.append(Paragraph(t))
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        loaded_texts = [p.text for p in loaded.paragraphs]
+        for t in texts:
+            assert t in loaded_texts, f"Missing: {t!r}"
+    finally:
+        os.unlink(path)
+
+
+@native_only
+def test_multiple_runs_in_paragraph_roundtrip() -> None:
+    """Multiple runs in a single paragraph all survive a save/load cycle."""
+    from fastdocx import Document
+    from fastdocx.paragraph import Paragraph
+    from fastdocx.run import Run
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+        path = f.name
+
+    try:
+        doc = Document()
+        para = Paragraph()
+        doc.paragraphs.append(para)
+        para.runs.append(Run("plain "))
+        para.runs.append(Run("bold ", bold=True))
+        para.runs.append(Run("italic", italic=True))
+        doc.save(path)
+
+        loaded = _open_docx(path)
+        paras = [p for p in loaded.paragraphs if p.text.strip()]
+        assert paras, "No non-empty paragraphs found"
+        runs = paras[0].runs
+        run_texts = [r.text for r in runs]
+        assert "plain " in run_texts
+        assert "bold " in run_texts
+        assert "italic" in run_texts
+        bold_run = next(r for r in runs if r.text == "bold ")
+        italic_run = next(r for r in runs if r.text == "italic")
+        assert bold_run.bold is True
+        assert italic_run.italic is True
     finally:
         os.unlink(path)
 

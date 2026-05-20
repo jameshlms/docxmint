@@ -1,415 +1,677 @@
-"""Unit tests for Document, Paragraph, and Table APIs.
+"""Unit tests for the fastdocx proxy model, DocumentView, and Document.
 
-The native binary is mocked out entirely so these tests run without any
-compiled C# artifact present.
+The native binary is mocked at the Handle level — no compiled C# needed.
 """
-
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from tests.unit.mock_handle import MockHandle
+
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fixture helpers
 # ---------------------------------------------------------------------------
 
-
-def _make_lib(
-    doc_handle: int = 1,
-    para_handle: int = 2,
-    heading_handle: int = 3,
-    table_handle: int = 4,
-    run_handle: int = 5,
-) -> MagicMock:
-    """Return a mock NativeLib with sensible default return values."""
-    lib = MagicMock()
-    lib.create_document.return_value = doc_handle
-    lib.add_paragraph.return_value = para_handle
-    lib.add_heading.return_value = heading_handle
-    lib.add_table.return_value = table_handle
-    lib.add_table_with_data.return_value = table_handle
-    lib.add_run.return_value = run_handle
-    lib.set_run_bold.return_value = 0
-    lib.set_run_italic.return_value = 0
-    lib.set_run_underline.return_value = 0
-    lib.set_run_font_size.return_value = 0
-    lib.set_run_font_name.return_value = 0
-    lib.set_cell_text.return_value = 0
-    lib.remove_paragraph.return_value = 0
-    lib.get_paragraph_count.return_value = 0
-    lib.get_paragraph_text.return_value = ""
-    lib.get_paragraph_style.return_value = ""
-    lib.save_document.return_value = 0
-    lib.free_document.return_value = None
-    lib.ffi = MagicMock()
-    return lib
-
-
-def _make_doc(lib: MagicMock | None = None) -> tuple[Any, MagicMock]:
-    if lib is None:
-        lib = _make_lib()
-    with patch("fastdocx.document.get_lib", return_value=lib):
+def _make_doc(mock: MockHandle | None = None):
+    if mock is None:
+        mock = MockHandle()
+    with patch("fastdocx._native.handle.get_handle", return_value=mock):
         from fastdocx.document import Document
         doc = Document()
-    return doc, lib
+    return doc, mock
 
 
 # ---------------------------------------------------------------------------
 # Document construction
 # ---------------------------------------------------------------------------
 
-
 class TestDocumentConstruction:
-    def test_create_document_calls_native(self) -> None:
-        lib = _make_lib()
-        doc, lib = _make_doc(lib)
-        lib.create_document.assert_called_once()
-        assert doc._handle == 1
+    def test_creates_handle_on_init(self):
+        mock = MockHandle()
+        doc, _ = _make_doc(mock)
+        assert doc._handle in mock._handles
 
-    def test_create_document_raises_on_null_handle(self) -> None:
-        lib = _make_lib(doc_handle=0)
-        with patch("fastdocx.document.get_lib", return_value=lib):
-            from fastdocx.document import Document
-            with pytest.raises(RuntimeError, match="null handle"):
-                Document()
-
-
-# ---------------------------------------------------------------------------
-# add_paragraph
-# ---------------------------------------------------------------------------
-
-
-class TestAddParagraph:
-    def test_returns_paragraph_with_text(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph("Hello")
-        assert para.text == "Hello"
-
-    def test_empty_text_creates_empty_paragraph(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        assert para.text == ""
-
-    def test_raises_on_native_failure(self) -> None:
-        lib = _make_lib()
-        lib.add_paragraph.return_value = 0
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="add_paragraph failed"):
-            doc.add_paragraph("oops")
-
-    def test_style_encoded_and_forwarded(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_paragraph("Styled", style="Heading1")
-        args = lib.add_paragraph.call_args.args
-        # add_paragraph(handle, style_bytes, style_len)
-        assert args[1] == b"Heading1"
-        assert args[2] == len(b"Heading1")
-
-    def test_no_style_passes_empty_bytes(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_paragraph("No style")
-        args = lib.add_paragraph.call_args.args
-        assert args[1] == b""
-        assert args[2] == 0
-
-
-# ---------------------------------------------------------------------------
-# add_heading
-# ---------------------------------------------------------------------------
-
-
-class TestAddHeading:
-    def test_returns_paragraph_with_text(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_heading("Title", level=1)
-        # add_heading creates the paragraph but text is embedded in the native call,
-        # not tracked via runs — heading paragraphs have no Python-side run objects
-        assert isinstance(para.text, str)
-
-    def test_level_forwarded(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_heading("Sub", level=3)
-        args = lib.add_heading.call_args.args
-        # add_heading(handle, text_bytes, text_len, level)
-        assert args[3] == 3
-
-    def test_text_encoded_and_forwarded(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_heading("My Heading", level=2)
-        args = lib.add_heading.call_args.args
-        assert args[1] == b"My Heading"
-        assert args[2] == len(b"My Heading")
-
-    def test_invalid_level_raises(self) -> None:
+    def test_is_open_after_creation(self):
         doc, _ = _make_doc()
-        with pytest.raises(ValueError, match="1\u20136"):
-            doc.add_heading("Bad", level=0)
-        with pytest.raises(ValueError, match="1\u20136"):
-            doc.add_heading("Bad", level=7)
+        assert doc.is_open
 
-    def test_raises_on_native_failure(self) -> None:
-        lib = _make_lib()
-        lib.add_heading.return_value = 0
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="add_heading failed"):
-            doc.add_heading("oops")
-
-
-# ---------------------------------------------------------------------------
-# add_table
-# ---------------------------------------------------------------------------
-
-
-class TestAddTable:
-    def test_returns_table_with_correct_dimensions(self) -> None:
-        doc, lib = _make_doc()
-        table = doc.add_table(rows=3, cols=2)
-        assert table.rows == 3
-        assert table.cols == 2
-
-    def test_cell_indexing(self) -> None:
-        doc, lib = _make_doc()
-        table = doc.add_table(rows=2, cols=2)
-        cell = table[0, 0]
-        cell.text = "Hello"
-        lib.set_cell_text.assert_called_once()
-        args = lib.set_cell_text.call_args.args
-        assert args[1] == 0  # row
-        assert args[2] == 0  # col
-        assert args[3] == b"Hello"
-
-    def test_out_of_bounds_raises(self) -> None:
-        doc, lib = _make_doc()
-        table = doc.add_table(rows=2, cols=2)
-        with pytest.raises(IndexError):
-            _ = table[2, 0]
-        with pytest.raises(IndexError):
-            _ = table[0, 2]
-
-    def test_cell_text_setter_raises_on_native_failure(self) -> None:
-        lib = _make_lib()
-        lib.set_cell_text.return_value = -1
-        doc, lib = _make_doc(lib)
-        table = doc.add_table(rows=2, cols=2)
-        with pytest.raises(RuntimeError, match="set_cell_text failed"):
-            table[0, 0].text = "fail"
-
-    def test_data_parameter_uses_add_table_with_data(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_table(rows=2, cols=2, data=[["A", "B"], ["C", "D"]])
-        lib.add_table_with_data.assert_called_once()
-        lib.add_table.assert_not_called()
-
-    def test_no_data_uses_add_table(self) -> None:
-        doc, lib = _make_doc()
-        doc.add_table(rows=2, cols=2)
-        lib.add_table.assert_called_once()
-        lib.add_table_with_data.assert_not_called()
-
-    def test_invalid_dimensions_raise(self) -> None:
+    def test_close_marks_not_open(self):
         doc, _ = _make_doc()
-        with pytest.raises(ValueError):
-            doc.add_table(rows=0, cols=2)
-        with pytest.raises(ValueError):
-            doc.add_table(rows=2, cols=-1)
-
-    def test_raises_on_native_failure(self) -> None:
-        lib = _make_lib()
-        lib.add_table.return_value = 0
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="add_table failed"):
-            doc.add_table(rows=1, cols=1)
-
-    def test_data_row_mismatch_raises_in_strict_mode(self) -> None:
-        doc, _ = _make_doc()
-        with pytest.raises(ValueError, match="rows"):
-            doc.add_table(rows=3, cols=2, data=[["A", "B"]])
-
-    def test_data_row_mismatch_truncates_in_non_strict_mode(self) -> None:
-        doc, lib = _make_doc()
-        # 1 data row but rows=3; strict=False should fill the gap
-        doc.add_table(rows=3, cols=2, data=[["A", "B"]], strict=False)
-        lib.add_table_with_data.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Paragraph runs and text
-# ---------------------------------------------------------------------------
-
-
-class TestParagraphRuns:
-    def test_add_run_returns_run_with_text(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        run = para.add_run("world")
-        assert run.text == "world"
-
-    def test_paragraph_text_concatenates_runs(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        para.add_run("Hello ")
-        para.add_run("world")
-        assert para.text == "Hello world"
-
-    def test_paragraph_text_from_initial_text(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph("Hello")
-        assert para.text == "Hello"
-
-    def test_runs_list_reflects_added_runs(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        para.add_run("a")
-        para.add_run("b")
-        assert len(para.runs) == 2
-
-    def test_run_bold_setter_calls_native(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        run = para.add_run("bold")
-        run.bold = True
-        lib.set_run_bold.assert_called_once_with(lib.add_run.return_value, 1)
-
-    def test_run_italic_setter_calls_native(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        run = para.add_run("italic")
-        run.italic = True
-        lib.set_run_italic.assert_called_once_with(lib.add_run.return_value, 1)
-
-    def test_run_font_size_converted_to_half_points(self) -> None:
-        doc, lib = _make_doc()
-        para = doc.add_paragraph()
-        run = para.add_run("sized")
-        run.font.size = 12
-        lib.set_run_font_size.assert_called_once_with(lib.add_run.return_value, 24)
-
-
-# ---------------------------------------------------------------------------
-# save / free
-# ---------------------------------------------------------------------------
-
-
-class TestSaveAndFree:
-    def test_save_calls_native_with_encoded_path(self) -> None:
-        doc, lib = _make_doc()
-        doc.save("/tmp/out.docx")
-        args = lib.save_document.call_args.args
-        assert args[1] == b"/tmp/out.docx"
-
-    def test_save_raises_on_native_failure(self) -> None:
-        lib = _make_lib()
-        lib.save_document.return_value = -1
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="save_document failed"):
-            doc.save("/tmp/out.docx")
-
-    def test_close_frees_handle(self) -> None:
-        doc, lib = _make_doc()
-        handle = doc._handle
         doc.close()
-        lib.free_document.assert_called_once_with(handle)
-        assert doc._handle is None
+        assert not doc.is_open
 
-    def test_double_close_is_safe(self) -> None:
-        doc, lib = _make_doc()
+    def test_double_close_is_safe(self):
+        doc, mock = _make_doc()
         doc.close()
         doc.close()  # should not raise
-        lib.free_document.assert_called_once()
 
-    def test_context_manager_closes_on_exit(self) -> None:
-        lib = _make_lib()
-        with patch("fastdocx.document.get_lib", return_value=lib):
+    def test_context_manager_closes_on_exit(self):
+        mock = MockHandle()
+        with patch("fastdocx._native.handle.get_handle", return_value=mock):
             from fastdocx.document import Document
             with Document() as doc:
                 handle = doc._handle
-        lib.free_document.assert_called_with(handle)
+        assert doc.is_open is False
+
+    def test_require_open_raises_after_close(self):
+        from fastdocx.errors import DocumentClosedError
+        doc, _ = _make_doc()
+        doc.close()
+        with pytest.raises(DocumentClosedError):
+            doc._require_open()
+
+    def test_document_open_classmethod(self):
+        mock = MockHandle()
+        mock.open_document = lambda path: mock.create_document()
+        with patch("fastdocx._native.handle.get_handle", return_value=mock):
+            from fastdocx.document import Document
+            doc = Document.open("test.docx")
+        assert doc.is_open
 
 
 # ---------------------------------------------------------------------------
-# Document.paragraphs
+# Document as collection
 # ---------------------------------------------------------------------------
 
+class TestDocumentAsCollection:
+    def test_len_is_zero_initially(self):
+        doc, _ = _make_doc()
+        assert len(doc) == 0
 
-class TestRemoveParagraph:
-    def test_calls_native_with_correct_index(self) -> None:
-        lib = _make_lib()
-        lib.remove_paragraph.return_value = 0
-        doc, lib = _make_doc(lib)
-        doc.remove_paragraph(2)
-        lib.remove_paragraph.assert_called_once_with(doc._handle, 2)
+    def test_append_paragraph(self):
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("Hello"))
+        assert len(doc) == 1
 
-    def test_out_of_range_raises_index_error(self) -> None:
-        lib = _make_lib()
-        lib.remove_paragraph.return_value = -2
-        doc, lib = _make_doc(lib)
-        with pytest.raises(IndexError, match="2"):
-            doc.remove_paragraph(2)
+    def test_append_sets_text(self):
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("Hello"))
+        para = doc.paragraphs[0]
+        assert para.text == "Hello"
 
-    def test_native_failure_raises_runtime_error(self) -> None:
-        lib = _make_lib()
-        lib.remove_paragraph.return_value = -1
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="remove_paragraph failed"):
-            doc.remove_paragraph(0)
+    def test_iter_yields_paragraphs(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("First"))
+        doc.paragraphs.append(Paragraph("Second"))
+        texts = [str(p) for p in doc.paragraphs]
+        assert texts == ["First", "Second"]
+
+    def test_paragraphs_first_last(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("First"))
+        doc.paragraphs.append(Paragraph("Last"))
+        assert doc.paragraphs.first.text == "First"
+        assert doc.paragraphs.last.text == "Last"
+
+    def test_paragraphs_first_is_none_when_empty(self):
+        doc, _ = _make_doc()
+        assert doc.paragraphs.first is None
+
+    def test_remove_marks_proxy_stale(self):
+        from fastdocx.errors import StaleProxyError
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("Temp"))
+        para = doc.paragraphs[0]
+        doc.paragraphs.remove(para)
+        with pytest.raises(StaleProxyError, match=r"snapshot\(\)"):
+            _ = para.text
+
+    def test_pop_removes_and_returns(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        popped = doc.paragraphs.pop()
+        assert popped.text == "B"
+        assert len(doc.paragraphs) == 1
+
+    def test_append_table(self):
+        from fastdocx.table import Table
+        doc, mock = _make_doc()
+        doc.tables.append(Table(rows=2, cols=3))
+        assert len(doc.tables) == 1
+
+    def test_type_error_on_wrong_type_in_filtered_view(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.table import Table
+        doc, _ = _make_doc()
+        with pytest.raises(TypeError, match="DocumentView"):
+            doc.paragraphs.append(Table(rows=1, cols=1))  # type: ignore
+
+    def test_getitem_by_type_returns_filtered_view(self):
+        from fastdocx.collection import DocumentView
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        view = doc[Paragraph]
+        assert isinstance(view, DocumentView)
+
+    def test_group_two_types(self):
+        from fastdocx.collection import DocumentView
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.table import Table
+        doc, _ = _make_doc()
+        view = doc.group([Paragraph, Table])
+        assert isinstance(view, DocumentView)
 
 
-class TestParagraphsProperty:
-    def test_empty_document_returns_empty_list(self) -> None:
-        lib = _make_lib()
-        lib.get_paragraph_count.return_value = 0
-        doc, lib = _make_doc(lib)
-        assert doc.paragraphs == []
+# ---------------------------------------------------------------------------
+# Paragraph proxy
+# ---------------------------------------------------------------------------
 
-    def test_returns_paragraph_info_objects(self) -> None:
-        from fastdocx.paragraph import ParagraphView
+class TestParagraphProxy:
+    def test_text_roundtrip_live(self):
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("hello"))
+        para = doc.paragraphs[0]
+        assert para.text == "hello"
+        para.text = "world"
+        assert para.text == "world"
 
-        lib = _make_lib()
-        lib.get_paragraph_count.return_value = 2
-        lib.get_paragraph_text.side_effect = lambda handle, i: ["Hello", "World"][i]
-        lib.get_paragraph_style.side_effect = lambda handle, i: ["Normal", "Heading1"][i]
-        doc, lib = _make_doc(lib)
+    def test_style_roundtrip_live(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("hi", style="Heading1"))
+        para = doc.paragraphs[0]
+        assert para.style == "Heading1"
+        para.style = "Normal"
+        assert para.style == "Normal"
 
-        paras = doc.paragraphs
-        assert len(paras) == 2
-        assert paras[0] == ParagraphView(text="Hello", style="Normal")
-        assert paras[1] == ParagraphView(text="World", style="Heading1")
+    def test_alignment_roundtrip_live(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("hi", alignment="center"))
+        para = doc.paragraphs[0]
+        assert para.alignment == "center"
+        para.alignment = "right"
+        assert para.alignment == "right"
 
-    def test_paragraph_with_no_style_returns_empty_string(self) -> None:
-        lib = _make_lib()
-        lib.get_paragraph_count.return_value = 1
-        lib.get_paragraph_text.return_value = "Plain text"
-        lib.get_paragraph_style.return_value = ""
-        doc, lib = _make_doc(lib)
+    def test_alignment_rejects_invalid(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("hi"))
+        para = doc.paragraphs[0]
+        with pytest.raises(ValueError, match="alignment"):
+            para.alignment = "diagonal"  # type: ignore
 
-        paras = doc.paragraphs
-        assert paras[0].style == ""
-        assert paras[0].text == "Plain text"
+    def test_spec_reads_from_data(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("spec text", style="Heading2")
+        assert para.text == "spec text"
+        assert para.style == "Heading2"
+        assert not para._is_live
 
-    def test_raises_on_native_count_failure(self) -> None:
-        lib = _make_lib()
-        lib.get_paragraph_count.return_value = -1
-        doc, lib = _make_doc(lib)
-        with pytest.raises(RuntimeError, match="get_paragraph_count failed"):
-            _ = doc.paragraphs
+    def test_copy_returns_snapshot(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("snapshot me"))
+        para = doc.paragraphs[0]
+        snap = para.copy()
+        assert isinstance(snap, Paragraph)
+        assert not snap._is_live
+        assert snap.text == "snapshot me"
 
-    def test_paragraph_info_is_immutable(self) -> None:
-        from fastdocx.paragraph import ParagraphView
+    def test_document_closed_raises_on_access(self):
+        from fastdocx.errors import DocumentClosedError
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("bye"))
+        para = doc.paragraphs[0]
+        doc.close()
+        with pytest.raises(DocumentClosedError, match=r"snapshot\(\)"):
+            _ = para.text
 
-        p = ParagraphView(text="hello", style="Normal")
-        with pytest.raises(Exception):
-            p.text = "changed"  # type: ignore[misc]
+    def test_stale_proxy_raises_on_access(self):
+        from fastdocx.errors import StaleProxyError
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("gone"))
+        para = doc.paragraphs[0]
+        doc.paragraphs.remove(para)
+        with pytest.raises(StaleProxyError, match=r"snapshot\(\)"):
+            _ = para.text
 
-    def test_calls_native_with_correct_indices(self) -> None:
-        lib = _make_lib()
-        lib.get_paragraph_count.return_value = 3
-        lib.get_paragraph_text.return_value = "x"
-        lib.get_paragraph_style.return_value = ""
-        doc, lib = _make_doc(lib)
+    def test_unknown_attribute_raises(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("x"))
+        para = doc.paragraphs[0]
+        with pytest.raises(AttributeError):
+            _ = para.no_such_attr
 
-        doc.paragraphs
-        text_indices = [call.args[1] for call in lib.get_paragraph_text.call_args_list]
-        assert text_indices == [0, 1, 2]
+
+# ---------------------------------------------------------------------------
+# Run proxy
+# ---------------------------------------------------------------------------
+
+class TestRunProxy:
+    def _para_with_run(self, text: str = "hello", **run_kwargs):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph())
+        para = doc.paragraphs[0]
+        para.runs.append(Run(text, **run_kwargs))
+        run = para.runs[0]
+        return run, mock
+
+    def test_text_roundtrip(self):
+        run, _ = self._para_with_run("hello")
+        assert run.text == "hello"
+        run.text = "world"
+        assert run.text == "world"
+
+    def test_bold_roundtrip(self):
+        run, _ = self._para_with_run(bold=True)
+        assert run.bold is True
+        run.bold = False
+        assert run.bold is False
+
+    def test_italic_roundtrip(self):
+        run, _ = self._para_with_run(italic=True)
+        assert run.italic is True
+
+    def test_font_size_roundtrip(self):
+        run, _ = self._para_with_run(font_size=12.0)
+        assert run.font_size == 12.0
+
+    def test_font_name_roundtrip(self):
+        run, _ = self._para_with_run(font_name="Arial")
+        assert run.font_name == "Arial"
+
+    def test_color_roundtrip(self):
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        from fastdocx.paragraph import Paragraph
+        doc.paragraphs.append(Paragraph())
+        para = doc.paragraphs[0]
+        para.runs.append(Run("x"))
+        run = para.runs[0]
+        run.color = "#FF0000"
+        # mock stores bare hex (after # strip in ColorProperty)
+        assert run.color in ("#FF0000", "FF0000")
+
+    def test_mutex_all_caps_small_caps(self):
+        from fastdocx.run import Run
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            Run("x", all_caps=True, small_caps=True)
+
+    def test_mutex_superscript_subscript(self):
+        from fastdocx.run import Run
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            Run("x", superscript=True, subscript=True)
+
+    def test_copy_returns_snapshot(self):
+        from fastdocx.run import Run
+        run, _ = self._para_with_run("copy me", bold=True)
+        snap = run.copy()
+        assert isinstance(snap, Run)
+        assert not snap._is_live
+        assert snap.text == "copy me"
+        assert snap.bold is True
+
+    def test_stale_run_raises(self):
+        from fastdocx.errors import StaleProxyError
+        run, _ = self._para_with_run("temp")
+        object.__setattr__(run, "_stale", True)
+        with pytest.raises(StaleProxyError, match=r"snapshot\(\)"):
+            _ = run.text
+
+    def test_spec_run_has_correct_data(self):
+        from fastdocx.run import Run
+        run = Run("spec", bold=True, italic=False)
+        assert run.text == "spec"
+        assert run.bold is True
+        assert not run._is_live
+
+
+# ---------------------------------------------------------------------------
+# Table proxy
+# ---------------------------------------------------------------------------
+
+class TestTableProxy:
+    def test_table_append_and_access(self):
+        from fastdocx.table import Table
+        doc, mock = _make_doc()
+        doc.tables.append(Table(rows=2, cols=3))
+        assert len(doc.tables) == 1
+        table = doc.tables[0]
+        assert isinstance(table, Table)
+
+    def test_table_rows_count(self):
+        from fastdocx.table import Table
+        doc, mock = _make_doc()
+        doc.tables.append(Table(rows=3, cols=2))
+        table = doc.tables[0]
+        assert len(table.rows) == 3
+
+    def test_table_cell_access(self):
+        from fastdocx.table import Table
+        doc, mock = _make_doc()
+        doc.tables.append(Table(rows=2, cols=2))
+        table = doc.tables[0]
+        cell = table.cell(0, 0)
+        cell.text = "R0C0"
+        assert table.cell(0, 0).text == "R0C0"
+
+    def test_table_getitem_tuple(self):
+        from fastdocx.table import Table
+        doc, _ = _make_doc()
+        doc.tables.append(Table(rows=2, cols=2))
+        table = doc.tables[0]
+        table[1, 0].text = "R1C0"
+        assert table[1, 0].text == "R1C0"
+
+
+# ---------------------------------------------------------------------------
+# DocumentView
+# ---------------------------------------------------------------------------
+
+class TestDocumentView:
+    def test_slice_returns_view(self):
+        from fastdocx.collection import DocumentView
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        for i in range(4):
+            doc.paragraphs.append(Paragraph(f"Para {i}"))
+        sliced = doc.paragraphs[1:3]
+        assert isinstance(sliced, DocumentView)
+        assert len(sliced) == 2
+
+    def test_bool_false_when_empty(self):
+        doc, _ = _make_doc()
+        assert not doc.paragraphs
+
+    def test_bool_true_when_not_empty(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("x"))
+        assert doc.paragraphs
+
+    def test_iadd_extends(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs += [Paragraph("A"), Paragraph("B")]
+        assert len(doc.paragraphs) == 2
+
+    def test_contains_true_for_live_element(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("x"))
+        para = doc.paragraphs[0]
+        assert para in doc.paragraphs
+
+    def test_contains_false_for_spec(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        assert Paragraph("x") not in doc.paragraphs
+
+    def test_reversed_order(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        texts = [p.text for p in reversed(doc.paragraphs)]
+        assert texts == ["B", "A"]
+
+
+# ---------------------------------------------------------------------------
+# Document.save
+# ---------------------------------------------------------------------------
+
+class TestDocumentSave:
+    def test_save_stores_path(self):
+        doc, mock = _make_doc()
+        doc.save("/tmp/out.docx")
+        assert doc.path == "/tmp/out.docx"
+
+    def test_save_without_path_raises(self):
+        doc, _ = _make_doc()
+        with pytest.raises(ValueError, match="path"):
+            doc.save()
+
+    def test_save_after_close_raises(self):
+        from fastdocx.errors import DocumentClosedError
+        doc, _ = _make_doc()
+        doc.close()
+        with pytest.raises(DocumentClosedError):
+            doc.save("/tmp/out.docx")
+
+
+# ---------------------------------------------------------------------------
+# Proxy lifecycle — CONSTRUCTION → LIVE transition (_attach)
+# ---------------------------------------------------------------------------
+
+class TestProxyLifecycle:
+    def test_proxy_is_construction_before_append(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("hello")
+        assert para.state is ProxyState.CONSTRUCTION
+
+    def test_proxy_is_live_after_append(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("hello")
+        doc.paragraphs.append(para)
+        assert para.state is ProxyState.LIVE
+
+    def test_append_returns_same_object(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("hello")
+        returned = doc.paragraphs._append_one(para)
+        assert returned is para
+
+    def test_post_append_mutation_reflects_in_document(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("original")
+        doc.paragraphs.append(para)
+        para.text = "mutated"
+        assert doc.paragraphs[0].text == "mutated"
+
+    def test_double_append_raises(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("hello")
+        doc.paragraphs.append(para)
+        with pytest.raises(ValueError, match="already in a document"):
+            doc.paragraphs.append(para)
+
+    def test_append_live_proxy_to_different_doc_raises_ownership_error(self):
+        from fastdocx.errors import OwnershipError
+        from fastdocx.paragraph import Paragraph
+        doc1, _ = _make_doc()
+        doc2, _ = _make_doc()
+        para = Paragraph("hello")
+        doc1.paragraphs.append(para)
+        with pytest.raises(OwnershipError):
+            doc2.paragraphs.append(para)
+
+    def test_extend_transitions_all_to_live(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        p1, p2 = Paragraph("A"), Paragraph("B")
+        doc.paragraphs.extend([p1, p2])
+        assert p1.state is ProxyState.LIVE
+        assert p2.state is ProxyState.LIVE
+
+    def test_iadd_transitions_all_to_live(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        p1, p2 = Paragraph("A"), Paragraph("B")
+        doc.paragraphs += [p1, p2]
+        assert p1.state is ProxyState.LIVE
+        assert p2.state is ProxyState.LIVE
+
+    def test_snapshot_can_be_appended_and_becomes_live(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("original"))
+        snap = doc.paragraphs[0].copy()
+        assert snap.state is ProxyState.SNAPSHOT
+        doc2, _ = _make_doc()
+        doc2.paragraphs.append(snap)
+        assert snap.state is ProxyState.LIVE
+
+    def test_copy_of_spec_appended_independently(self):
+        """copy() creates a fresh CONSTRUCTION proxy that can be appended separately."""
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        template = Paragraph("template")
+        doc.paragraphs.append(template.copy())
+        doc.paragraphs.append(template.copy())
+        assert len(doc.paragraphs) == 2
+        assert template.is_construction  # original spec untouched
+
+    def test_table_transitions_to_live_after_append(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.table import Table
+        doc, _ = _make_doc()
+        tbl = Table(rows=2, cols=2)
+        doc.tables.append(tbl)
+        assert tbl.state is ProxyState.LIVE
+
+    def test_table_double_append_raises(self):
+        from fastdocx.table import Table
+        doc, _ = _make_doc()
+        tbl = Table(rows=2, cols=2)
+        doc.tables.append(tbl)
+        with pytest.raises(ValueError, match="already in a document"):
+            doc.tables.append(tbl)
+
+    def test_closed_doc_raises_document_closed_not_stale(self):
+        """Accessing a LIVE proxy after its doc closes raises DocumentClosedError, not StaleProxyError."""
+        from fastdocx.errors import DocumentClosedError, StaleProxyError
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("bye")
+        doc.paragraphs.append(para)
+        doc.close()
+        with pytest.raises(DocumentClosedError):
+            _ = para.text
+        # confirm it is NOT a stale error
+        assert not para.is_stale
+
+    def test_para_accessed_after_context_manager_raises_document_closed(self):
+        """Paragraph appended inside a context manager; reference held outside raises DocumentClosedError."""
+        from fastdocx.errors import DocumentClosedError
+        from fastdocx.paragraph import Paragraph
+        mock = MockHandle()
+        with patch("fastdocx._native.handle.get_handle", return_value=mock):
+            from fastdocx.document import Document
+            para = Paragraph("inside")
+            with Document() as doc:
+                doc.paragraphs.append(para)
+        with pytest.raises(DocumentClosedError):
+            _ = para.text
+
+    def test_run_transitions_to_live_after_append(self):
+        from fastdocx._proxy.base import ProxyState
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph())
+        run = Run("hello", bold=True)
+        doc.paragraphs[0].runs.append(run)
+        assert run.state is ProxyState.LIVE
+
+    def test_post_append_run_mutation_reflects_in_document(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph())
+        run = Run("original")
+        doc.paragraphs[0].runs.append(run)
+        run.text = "mutated"
+        assert doc.paragraphs[0].runs[0].text == "mutated"
+
+
+# ---------------------------------------------------------------------------
+# Collection edge cases
+# ---------------------------------------------------------------------------
+
+class TestCollectionEdgeCases:
+    def test_getitem_negative_index(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        assert doc.paragraphs[-1].text == "B"
+        assert doc.paragraphs[-2].text == "A"
+
+    def test_getitem_out_of_range_raises(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        with pytest.raises(IndexError):
+            _ = doc.paragraphs[5]
+
+    def test_clear_empties_collection(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        doc.paragraphs.clear()
+        assert len(doc.paragraphs) == 0
+
+    def test_index_returns_correct_position(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        para = doc.paragraphs[1]
+        assert doc.paragraphs.index(para) == 1
+
+    def test_index_raises_for_unknown_element(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        other = doc.paragraphs[0].copy()
+        with pytest.raises(ValueError):
+            doc.paragraphs.index(other)  # type: ignore
+
+    def test_pop_with_explicit_index(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        doc.paragraphs.append(Paragraph("B"))
+        doc.paragraphs.append(Paragraph("C"))
+        popped = doc.paragraphs.pop(1)
+        assert popped.text == "B"
+        assert len(doc.paragraphs) == 2
+
+    def test_pop_out_of_range_raises(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("A"))
+        with pytest.raises(IndexError):
+            doc.paragraphs.pop(5)
+
+    def test_remove_construction_proxy_raises(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        spec = Paragraph("never appended")
+        with pytest.raises(ValueError, match="not in a document"):
+            doc.paragraphs.remove(spec)  # type: ignore
+
+    def test_contains_false_after_remove(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("x"))
+        para = doc.paragraphs[0]
+        doc.paragraphs.remove(para)
+        assert para not in doc.paragraphs

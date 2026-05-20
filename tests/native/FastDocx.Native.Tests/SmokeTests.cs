@@ -1,308 +1,250 @@
+using System.Text;
 using Xunit;
+using static FastDocx.Native.Tests.TestHelper;
 
 namespace FastDocx.Native.Tests;
 
 /// <summary>
-/// Smoke tests for the DocumentBuilder core logic.
-/// These tests call internal APIs directly (no FFI / unmanaged pointers) so
-/// they run safely on any platform under dotnet test.
+/// Smoke tests for DocumentBuilder core logic via the generic property/collection API.
+/// No FFI / unmanaged pointers at the call site — helpers handle fixed() internally.
 /// </summary>
 public sealed class SmokeTests
 {
+    // ------------------------------------------------------------------
+    // Document lifecycle
+    // ------------------------------------------------------------------
+
     [Fact]
     public void CreateDocument_ReturnsNonZeroHandle()
     {
-        var handle = DocumentBuilder.CreateDocument();
-        Assert.NotEqual(0, handle);
-        DocumentBuilder.FreeDocument(handle);
+        var h = DocumentBuilder.CreateDocument();
+        Assert.NotEqual(0, h);
+        DocumentBuilder.Dispose(h);
     }
 
     [Fact]
-    public void FreeDocument_WithInvalidHandle_DoesNotThrow()
+    public void Dispose_WithInvalidHandle_DoesNotThrow()
     {
-        // Freeing an unknown handle should be a no-op, not an exception.
-        DocumentBuilder.FreeDocument(9999);
+        DocumentBuilder.Dispose(9999);
     }
 
     [Fact]
-    public unsafe void AddParagraph_ReturnsNonZeroHandle()
+    public void Dispose_CalledTwice_DoesNotThrow()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-        Assert.NotEqual(0, docHandle);
+        var h = DocumentBuilder.CreateDocument();
+        DocumentBuilder.Dispose(h);
+        DocumentBuilder.Dispose(h);
+    }
 
-        // AddParagraph takes (docHandle, style*, styleLen) — text is added via AddRun.
-        var paraHandle = DocumentBuilder.AddParagraph(docHandle, null, 0);
-        Assert.NotEqual(0, paraHandle);
+    // ------------------------------------------------------------------
+    // AppendChild — basic paragraph and run creation
+    // ------------------------------------------------------------------
 
-        DocumentBuilder.FreeDocument(docHandle);
+    [Fact]
+    public void AppendChild_Paragraph_ReturnsNonZeroHandle()
+    {
+        var doc = DocumentBuilder.CreateDocument();
+        Assert.NotEqual(0, Append(doc, "paragraph"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void AddParagraph_WithStyle_ReturnsNonZeroHandle()
+    public void AppendChild_ParagraphWithStyle_ReturnsNonZeroAndStylePersists()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-
-        var style = "Normal"u8.ToArray();
-        fixed (byte* pStyle = style)
-        {
-            var paraHandle = DocumentBuilder.AddParagraph(docHandle, pStyle, style.Length);
-            Assert.NotEqual(0, paraHandle);
-        }
-
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        Assert.NotEqual(0, para);
+        SetStr(para, "style", "Normal");
+        Assert.Equal("Normal", ReadStr(para, "style"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void AddRun_ReturnsNonZeroHandle()
+    public void AppendChild_Run_ReturnsNonZeroHandle()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-        var paraHandle = DocumentBuilder.AddParagraph(docHandle, null, 0);
-        Assert.NotEqual(0, paraHandle);
-
-        var text = "Hello, world!"u8.ToArray();
-        fixed (byte* pText = text)
-        {
-            var runHandle = DocumentBuilder.AddRun(
-                paraHandle, pText, text.Length,
-                bold: -1, italic: -1, fontSize: 0);
-            Assert.NotEqual(0, runHandle);
-        }
-
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        var run = Append(para, "run");
+        Assert.NotEqual(0, run);
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void AddHeading_Level1_ReturnsNonZeroHandle()
+    public void AppendChild_HeadingStyle_Persists()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-
-        var text = "My Heading"u8.ToArray();
-        fixed (byte* pText = text)
-        {
-            var paraHandle = DocumentBuilder.AddHeading(docHandle, pText, text.Length, level: 1);
-            Assert.NotEqual(0, paraHandle);
-        }
-
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        SetStr(para, "text", "My Heading");
+        SetStr(para, "style", "Heading1");
+        Assert.Equal("Heading1", ReadStr(para, "style"));
+        Assert.Equal("My Heading", ReadStr(para, "text"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void AddTable_And_SetCellText_Succeed()
+    public void AppendChild_InvalidHandle_ReturnsZero()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-
-        var tableHandle = DocumentBuilder.AddTable(docHandle, rows: 2, cols: 2);
-        Assert.NotEqual(0, tableHandle);
-
-        var cellText = "North"u8.ToArray();
-        fixed (byte* pText = cellText)
-        {
-            var rc = DocumentBuilder.SetCellText(tableHandle, row: 1, col: 0, pText, cellText.Length);
-            Assert.Equal(0, rc);
-        }
-
-        DocumentBuilder.FreeDocument(docHandle);
+        Assert.Equal(0, Append(9999, "paragraph"));
     }
+
+    // ------------------------------------------------------------------
+    // AddTable
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void AddTable_ReturnsNonZeroHandle()
+    {
+        var doc = DocumentBuilder.CreateDocument();
+        Assert.NotEqual(0, DocumentBuilder.AddTable(doc, 2, 2));
+        DocumentBuilder.Dispose(doc);
+    }
+
+    [Fact]
+    public void AddTable_SetCellText_Succeeds()
+    {
+        var doc = DocumentBuilder.CreateDocument();
+        var tbl = DocumentBuilder.AddTable(doc, 2, 2);
+        var row = ChildAt(tbl, "rows", 1);
+        var cell = ChildAt(row, "cells", 0);
+        Assert.Equal(0, SetStr(cell, "text", "North"));
+        Assert.Equal("North", ReadStr(cell, "text"));
+        DocumentBuilder.Dispose(doc);
+    }
+
+    // ------------------------------------------------------------------
+    // SaveDocument
+    // ------------------------------------------------------------------
 
     [Fact]
     public unsafe void SaveDocument_WritesFile()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        SetStr(para, "text", "Test Doc");
+        SetStr(para, "style", "Heading1");
 
-        var heading = "Test Doc"u8.ToArray();
-        fixed (byte* pHeading = heading)
-            DocumentBuilder.AddHeading(docHandle, pHeading, heading.Length, level: 1);
-
-        var tmpPath = Path.GetTempFileName() + ".docx";
+        var path = SaveToTempFile(doc);
         try
         {
-            var pathBytes = System.Text.Encoding.UTF8.GetBytes(tmpPath);
-            fixed (byte* pPath = pathBytes)
-            {
-                var rc = DocumentBuilder.SaveDocument(docHandle, pPath, pathBytes.Length);
-                Assert.Equal(0, rc);
-            }
-
-            Assert.True(File.Exists(tmpPath), "Expected output file to exist after save.");
-            Assert.True(new FileInfo(tmpPath).Length > 0, "Expected non-empty .docx file.");
+            Assert.True(File.Exists(path), "Expected output file to exist after save.");
+            Assert.True(new FileInfo(path).Length > 0, "Expected non-empty .docx file.");
         }
         finally
         {
-            if (File.Exists(tmpPath))
-                File.Delete(tmpPath);
-
-            DocumentBuilder.FreeDocument(docHandle);
+            if (File.Exists(path)) File.Delete(path);
+            DocumentBuilder.Dispose(doc);
         }
     }
 
+    // ------------------------------------------------------------------
+    // GetCount
+    // ------------------------------------------------------------------
+
     [Fact]
-    public unsafe void AddParagraph_WithInvalidHandle_ReturnsZero()
+    public void GetCount_Paragraphs_EmptyDocument_ReturnsZero()
     {
-        var result = DocumentBuilder.AddParagraph(9999, null, 0);
-        Assert.Equal(0, result);
+        var doc = DocumentBuilder.CreateDocument();
+        Assert.Equal(0, Count(doc, "paragraphs"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public void GetParagraphCount_EmptyDocument_ReturnsZero()
+    public void GetCount_Paragraphs_AfterAddingThree_ReturnsThree()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-        var count = DocumentBuilder.GetParagraphCount(docHandle);
-        Assert.Equal(0, count);
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        Append(doc, "paragraph");
+        Append(doc, "paragraph");
+        Append(doc, "paragraph");
+        Assert.Equal(3, Count(doc, "paragraphs"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void GetParagraphCount_AfterAddingParagraphs_ReturnsCorrectCount()
+    public void GetCount_InvalidHandle_ReturnsMinusOne()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
+        Assert.Equal(-1, Count(9999, "paragraphs"));
+    }
 
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
+    // ------------------------------------------------------------------
+    // GetStr — text and style read-back
+    // ------------------------------------------------------------------
 
-        var heading = "Title"u8.ToArray();
-        fixed (byte* pHeading = heading)
-            DocumentBuilder.AddHeading(docHandle, pHeading, heading.Length, level: 1);
-
-        var count = DocumentBuilder.GetParagraphCount(docHandle);
-        Assert.Equal(3, count);
-
-        DocumentBuilder.FreeDocument(docHandle);
+    [Fact]
+    public void GetStr_ParagraphText_ReturnsCorrectText()
+    {
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        SetStr(para, "text", "Hello FastDOCX");
+        Assert.Equal("Hello FastDOCX", ReadStr(para, "text"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void GetParagraphText_ReturnsCorrectText()
+    public void GetStr_ParagraphStyle_ReturnsStyleId()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-        var paraHandle = DocumentBuilder.AddParagraph(docHandle, null, 0);
-
-        var text = "Hello FastDOCX"u8.ToArray();
-        fixed (byte* pText = text)
-            DocumentBuilder.AddRun(paraHandle, pText, text.Length, -1, -1, 0);
-
-        var buf = new byte[256];
-        var required = 0;
-        int written;
-        fixed (byte* pBuf = buf)
-        {
-            written = DocumentBuilder.GetParagraphText(docHandle, 0, pBuf, buf.Length, &required);
-        }
-
-        Assert.True(written > 0);
-        var result = System.Text.Encoding.UTF8.GetString(buf, 0, written);
-        Assert.Equal("Hello FastDOCX", result);
-
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        SetStr(para, "style", "Normal");
+        Assert.Equal("Normal", ReadStr(para, "style"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void GetParagraphStyle_ReturnsStyleId()
+    public void GetStr_ParagraphStyle_NoStyle_ReturnsEmpty()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-
-        var styleBytes = "Normal"u8.ToArray();
-        fixed (byte* pStyle = styleBytes)
-            DocumentBuilder.AddParagraph(docHandle, pStyle, styleBytes.Length);
-
-        var buf = new byte[256];
-        var required = 0;
-        int written;
-        fixed (byte* pBuf = buf)
-        {
-            written = DocumentBuilder.GetParagraphStyle(docHandle, 0, pBuf, buf.Length, &required);
-        }
-
-        Assert.True(written > 0);
-        var result = System.Text.Encoding.UTF8.GetString(buf, 0, written);
-        Assert.Equal("Normal", result);
-
-        DocumentBuilder.FreeDocument(docHandle);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        Assert.Equal("", ReadStr(para, "style"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public unsafe void GetParagraphStyle_NoStyle_ReturnsEmpty()
+    public unsafe void GetStr_BufferTooSmall_ReturnsZeroAndSetsRequired()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        SetStr(para, "text", "Hello");
 
-        var buf = new byte[256];
-        var required = 0;
-        int written;
-        fixed (byte* pBuf = buf)
-        {
-            written = DocumentBuilder.GetParagraphStyle(docHandle, 0, pBuf, buf.Length, &required);
-        }
-
-        // No style set — written should be 0 and required should be 0.
-        Assert.Equal(0, written);
-        Assert.Equal(0, required);
-
-        DocumentBuilder.FreeDocument(docHandle);
-    }
-
-    [Fact]
-    public unsafe void GetParagraphText_BufferTooSmall_ReturnsZeroAndRequired()
-    {
-        var docHandle = DocumentBuilder.CreateDocument();
-        var paraHandle = DocumentBuilder.AddParagraph(docHandle, null, 0);
-
-        var text = "Hello"u8.ToArray();
-        fixed (byte* pText = text)
-            DocumentBuilder.AddRun(paraHandle, pText, text.Length, -1, -1, 0);
-
-        // Provide a 2-byte buffer — too small for "Hello" (5 bytes).
+        var nameBytes = TestHelper.U("text");
         var buf = new byte[2];
-        var required = 0;
-        int written;
-        fixed (byte* pBuf = buf)
-        {
-            written = DocumentBuilder.GetParagraphText(docHandle, 0, pBuf, buf.Length, &required);
-        }
+        int required = 0, written;
+        fixed (byte* pName = nameBytes, pBuf = buf)
+            written = DocumentBuilder.GetStr(para, pName, nameBytes.Length, pBuf, buf.Length, &required);
 
         Assert.Equal(0, written);
-        Assert.Equal(5, required); // "Hello" = 5 bytes
+        Assert.Equal(5, required);  // "Hello" = 5 bytes
+        DocumentBuilder.Dispose(doc);
+    }
 
-        DocumentBuilder.FreeDocument(docHandle);
+    // ------------------------------------------------------------------
+    // RemoveChild — replaces old RemoveParagraph API
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void RemoveChild_Paragraph_DecreasesCount()
+    {
+        var doc = DocumentBuilder.CreateDocument();
+        var p1 = Append(doc, "paragraph");
+        Append(doc, "paragraph");
+        Assert.Equal(2, Count(doc, "paragraphs"));
+        Assert.Equal(0, DocumentBuilder.RemoveChild(p1));
+        Assert.Equal(1, Count(doc, "paragraphs"));
+        DocumentBuilder.Dispose(doc);
     }
 
     [Fact]
-    public void GetParagraphCount_WithInvalidHandle_ReturnsNegativeOne()
+    public void RemoveChild_InvalidHandle_ReturnsMinusOne()
     {
-        var count = DocumentBuilder.GetParagraphCount(9999);
-        Assert.Equal(-1, count);
+        Assert.Equal(-1, DocumentBuilder.RemoveChild(9999));
     }
 
     [Fact]
-    public unsafe void RemoveParagraph_DecreasesCount()
+    public void RemoveChild_AlreadyRemovedHandle_ReturnsMinusOne()
     {
-        var docHandle = DocumentBuilder.CreateDocument();
-
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
-        Assert.Equal(2, DocumentBuilder.GetParagraphCount(docHandle));
-
-        var rc = DocumentBuilder.RemoveParagraph(docHandle, 0);
-        Assert.Equal(0, rc);
-        Assert.Equal(1, DocumentBuilder.GetParagraphCount(docHandle));
-
-        DocumentBuilder.FreeDocument(docHandle);
-    }
-
-    [Fact]
-    public unsafe void RemoveParagraph_OutOfRange_ReturnsMinusTwo()
-    {
-        var docHandle = DocumentBuilder.CreateDocument();
-        DocumentBuilder.AddParagraph(docHandle, null, 0);
-
-        var rc = DocumentBuilder.RemoveParagraph(docHandle, 5);
-        Assert.Equal(-2, rc);
-
-        DocumentBuilder.FreeDocument(docHandle);
-    }
-
-    [Fact]
-    public void RemoveParagraph_WithInvalidHandle_ReturnsMinusOne()
-    {
-        var rc = DocumentBuilder.RemoveParagraph(9999, 0);
-        Assert.Equal(-1, rc);
+        var doc = DocumentBuilder.CreateDocument();
+        var para = Append(doc, "paragraph");
+        DocumentBuilder.RemoveChild(para);
+        Assert.Equal(-1, DocumentBuilder.RemoveChild(para));
+        DocumentBuilder.Dispose(doc);
     }
 }
