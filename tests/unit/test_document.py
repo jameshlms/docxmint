@@ -319,9 +319,10 @@ class TestRunProxy:
         assert snap.bold is True
 
     def test_stale_run_raises(self):
+        from fastdocx._proxy.base import ProxyState
         from fastdocx.errors import StaleProxyError
         run, _ = self._para_with_run("temp")
-        object.__setattr__(run, "_stale", True)
+        object.__setattr__(run, "_state", ProxyState.STALE)
         with pytest.raises(StaleProxyError, match=r"snapshot\(\)"):
             _ = run.text
 
@@ -675,3 +676,82 @@ class TestCollectionEdgeCases:
         para = doc.paragraphs[0]
         doc.paragraphs.remove(para)
         assert para not in doc.paragraphs
+
+
+# ---------------------------------------------------------------------------
+# NativeRuntimeError propagation (error injection via MockHandle)
+# ---------------------------------------------------------------------------
+
+class TestNativeRuntimeError:
+    def test_create_document_failure_propagates(self):
+        from fastdocx.document import Document
+        from fastdocx.errors import NativeRuntimeError
+        mock = MockHandle()
+        mock.inject_error("create_document", NativeRuntimeError("create_document returned null handle"))
+        with patch("fastdocx._native.handle.get_handle", return_value=mock):
+            with pytest.raises(NativeRuntimeError, match="create_document"):
+                Document()
+
+    def test_save_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        doc, mock = _make_doc()
+        mock.inject_error("save_document", NativeRuntimeError("save_document failed"))
+        with pytest.raises(NativeRuntimeError, match="save_document"):
+            doc.save("/tmp/out.docx")
+
+    def test_append_child_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        mock.inject_error("append_child", NativeRuntimeError("append_child failed"))
+        with pytest.raises(NativeRuntimeError, match="append_child"):
+            doc.paragraphs.append(Paragraph("x"))
+
+    def test_remove_child_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("x"))
+        para = doc.paragraphs[0]
+        mock.inject_error("remove_child", NativeRuntimeError("remove_child failed"))
+        with pytest.raises(NativeRuntimeError, match="remove_child"):
+            doc.paragraphs.remove(para)
+
+    def test_set_str_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("hello"))
+        para = doc.paragraphs[0]
+        mock.inject_error("set_str", NativeRuntimeError("set_str failed"))
+        with pytest.raises(NativeRuntimeError, match="set_str"):
+            para.text = "new text"
+
+    def test_set_int_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("hello"))
+        para = doc.paragraphs[0]
+        mock.inject_error("set_int", NativeRuntimeError("set_int failed"))
+        with pytest.raises(NativeRuntimeError, match="set_int"):
+            para.keep_together = True
+
+    def test_get_count_failure_propagates(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        doc.paragraphs.append(Paragraph("hello"))
+        mock.inject_error("get_count", NativeRuntimeError("get_count failed"))
+        with pytest.raises(NativeRuntimeError, match="get_count"):
+            len(doc.paragraphs)
+
+    def test_error_cleared_after_clear_error(self):
+        from fastdocx.errors import NativeRuntimeError
+        from fastdocx.paragraph import Paragraph
+        doc, mock = _make_doc()
+        mock.inject_error("save_document", NativeRuntimeError("save_document failed"))
+        with pytest.raises(NativeRuntimeError):
+            doc.save("/tmp/out.docx")
+        mock.clear_error("save_document")
+        doc.save("/tmp/out.docx")  # should not raise

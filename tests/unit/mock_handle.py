@@ -16,6 +16,19 @@ class MockHandle:
         self._types: dict[int, str] = {}
         self._parent: dict[int, int] = {}
         self._next = 1
+        self._errors: dict[str, Exception] = {}
+
+    def inject_error(self, method: str, error: Exception) -> None:
+        """Cause every call to *method* to raise *error* until cleared."""
+        self._errors[method] = error
+
+    def clear_error(self, method: str) -> None:
+        """Remove a previously injected error for *method*."""
+        self._errors.pop(method, None)
+
+    def _check_error(self, method: str) -> None:
+        if method in self._errors:
+            raise self._errors[method]
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -45,17 +58,21 @@ class MockHandle:
     # ------------------------------------------------------------------
 
     def create_document(self) -> int:
+        self._check_error("create_document")
         return self._alloc("document")
 
     def open_document(self, path: str) -> int:
+        self._check_error("open_document")
         h = self._alloc("document")
         self._handles[h]["path"] = path
         return h
 
     def edit_document(self, path: str) -> int:
+        self._check_error("edit_document")
         return self.open_document(path)
 
     def save_document(self, handle: int, path: str) -> None:
+        self._check_error("save_document")
         self._handles[handle]["path"] = path
 
     def dispose(self, handle: int) -> None:
@@ -68,34 +85,40 @@ class MockHandle:
     # ------------------------------------------------------------------
 
     def get_int(self, handle: int, name: str) -> int:
+        self._check_error("get_int")
         val = self._handles.get(handle, {}).get(name)
         if val is None:
             return -1
         return int(val)
 
     def set_int(self, handle: int, name: str, value: int) -> None:
+        self._check_error("set_int")
         if handle not in self._handles:
             raise RuntimeError(f"Invalid handle {handle}")
         self._handles[handle][name] = value
 
     def get_float(self, handle: int, name: str) -> float:
+        self._check_error("get_float")
         val = self._handles.get(handle, {}).get(name)
         if val is None:
             return 0.0
         return float(val)
 
     def set_float(self, handle: int, name: str, value: float) -> None:
+        self._check_error("set_float")
         if handle not in self._handles:
             raise RuntimeError(f"Invalid handle {handle}")
         self._handles[handle][name] = value
 
     def get_str(self, handle: int, name: str) -> str:
+        self._check_error("get_str")
         val = self._handles.get(handle, {}).get(name)
         if val is None:
             return ""
         return str(val)
 
     def set_str(self, handle: int, name: str, value: str) -> None:
+        self._check_error("set_str")
         if handle not in self._handles:
             raise RuntimeError(f"Invalid handle {handle}")
         self._handles[handle][name] = value
@@ -105,6 +128,7 @@ class MockHandle:
     # ------------------------------------------------------------------
 
     def get_count(self, handle: int, collection: str) -> int:
+        self._check_error("get_count")
         if handle not in self._children:
             return 0
         if collection == "body":
@@ -129,15 +153,18 @@ class MockHandle:
         return 0
 
     def get_element_type(self, handle: int) -> str:
+        self._check_error("get_element_type")
         return self._types.get(handle, "unknown")
 
     def append_child(self, parent: int, child_type: str) -> int:
+        self._check_error("append_child")
         h = self._alloc(child_type)
         self._children.setdefault(parent, []).append(h)
         self._parent[h] = parent
         return h
 
     def remove_child(self, handle: int) -> None:
+        self._check_error("remove_child")
         parent = self._parent.pop(handle, None)
         if parent is not None and parent in self._children:
             self._children[parent] = [
@@ -148,6 +175,7 @@ class MockHandle:
         self._types.pop(handle, None)
 
     def add_table(self, doc_handle: int, rows: int, cols: int) -> int:
+        self._check_error("add_table")
         h = self._alloc("table")
         self._handles[h]["rows"] = rows
         self._handles[h]["cols"] = cols

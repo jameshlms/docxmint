@@ -322,6 +322,40 @@ def test_multiple_runs_in_paragraph_roundtrip() -> None:
 
 
 @native_only
+def test_open_nonexistent_raises_native_runtime_error() -> None:
+    """Opening a file that does not exist raises NativeRuntimeError."""
+    from fastdocx import Document
+    from fastdocx.errors import NativeRuntimeError
+
+    with pytest.raises(NativeRuntimeError):
+        Document.open("/nonexistent_fastdocx_test_xyz/missing.docx")
+
+
+@native_only
+def test_edit_nonexistent_raises_native_runtime_error() -> None:
+    """Editing a file that does not exist raises NativeRuntimeError."""
+    from fastdocx import Document
+    from fastdocx.errors import NativeRuntimeError
+
+    with pytest.raises(NativeRuntimeError):
+        Document.edit("/nonexistent_fastdocx_test_xyz/missing.docx")
+
+
+@native_only
+def test_save_to_bad_path_raises_native_runtime_error() -> None:
+    """Saving to a path whose parent directory does not exist raises NativeRuntimeError."""
+    from fastdocx import Document
+    from fastdocx.errors import NativeRuntimeError
+
+    doc = Document()
+    try:
+        with pytest.raises(NativeRuntimeError):
+            doc.save("/nonexistent_fastdocx_test_xyz/out.docx")
+    finally:
+        doc.close()
+
+
+@native_only
 def test_full_document_roundtrip() -> None:
     """The README quickstart example produces a valid document."""
     from fastdocx import Document
