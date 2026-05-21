@@ -23,7 +23,7 @@ from fastdocx.formats import (
     SpacingFormat,
     TableBorders,
 )
-from fastdocx.paragraph import Paragraph
+from fastdocx.paragraph import HorizontalRule, Paragraph
 from fastdocx.run import Run
 from fastdocx.section import Section
 from fastdocx.styles import Style, StyleCollection
@@ -47,6 +47,7 @@ __all__ = [
     "snapshot",
     "Document",
     "Paragraph",
+    "HorizontalRule",
     "Run",
     "Table",
     "Row",

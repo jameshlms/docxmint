@@ -7,7 +7,7 @@ build live ``DocumentView`` objects, or ``None`` when the container is not yet l
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Literal
 
 from fastdocx._proxy.base import ProxyBase
 
@@ -15,12 +15,10 @@ if TYPE_CHECKING:
     from fastdocx._native.handle import Handle
     from fastdocx.collection import DocumentView
     from fastdocx.document import Document
-    from fastdocx.paragraph import Paragraph
+    from fastdocx.paragraph import HorizontalRule, Paragraph
     from fastdocx.table import Table
 
     _BlockCtx = tuple[int, Handle, Document]
-
-_T = TypeVar("_T", bound=ProxyBase)
 
 
 class BlockContainerMixin:
@@ -43,9 +41,9 @@ class BlockContainerMixin:
 
         ctx = self._block_context()
         if ctx is None:
-            return []  # type: ignore[return-value]
+            return DocumentView.empty(elem_type, collection)
         handle, lib, document = ctx
-        return DocumentView(handle, document, lib, (elem_type,), collection)
+        return DocumentView(handle, document, lib, elem_type, collection)
 
     def _block_append[T: ProxyBase](self, element: T) -> T:
         ctx = self._block_context()
@@ -54,7 +52,7 @@ class BlockContainerMixin:
         handle, lib, document = ctx
         from fastdocx.collection import DocumentView
 
-        view = DocumentView(handle, document, lib, (type(element),), "body")
+        view = DocumentView(handle, document, lib, type(element), "body")
         return view._append_one(element)
 
     # ------------------------------------------------------------------
@@ -102,3 +100,17 @@ class BlockContainerMixin:
         from fastdocx.table import Table
 
         return self._block_append(Table(rows, cols, style=style))
+
+    def add_horizontal_rule(
+        self,
+        *,
+        line_style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
+        line_width: float = 6.0,
+        line_color: str = "auto",
+    ) -> HorizontalRule:
+        """Append a horizontal rule and return the live proxy."""
+        from fastdocx.paragraph import HorizontalRule
+
+        return self._block_append(
+            HorizontalRule(line_style=line_style, line_width=line_width, line_color=line_color)
+        )
