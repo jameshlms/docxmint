@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from fastdocx._block import BlockContainerMixin
-from fastdocx._proxy.base import ProxyBase
+from fastdocx._proxy.base import ProxyBase, ProxyState
 from fastdocx._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
 from fastdocx.collection import DocumentView
 
@@ -38,7 +38,7 @@ class Cell(BlockContainerMixin, ProxyBase):
 
     @property
     def tables(self) -> DocumentView[Table]:  # type: ignore[override]
-        return []  # type: ignore[return-value]  # nested tables not yet wired in v1
+        return DocumentView.empty(Table, "tables")
 
     @tables.setter
     def tables(self, _: object) -> None:
@@ -58,11 +58,11 @@ class Cell(BlockContainerMixin, ProxyBase):
         }
 
     def __repr__(self) -> str:
+        if self.state is ProxyState.STALE:
+            return "Cell(<stale>)"
         native = self._getattr("_native")
         if native is None:
             return "Cell(spec)"
-        if self._getattr("_stale"):
-            return "Cell(<stale>)"
         try:
             return f"Cell(text={self.text!r}, handle={native!r})"
         except Exception:
@@ -102,13 +102,13 @@ class Row(ProxyBase):
     @property
     def cells(self) -> DocumentView[Cell]:
         if not self._is_live:
-            return []  # type: ignore[return-value]
+            return DocumentView.empty(Cell, "cells")
         self._check_valid()
         return DocumentView(
             self._getattr("_native"),
             self._getattr("_document"),
             self._get_lib(),
-            (Cell,),
+            Cell,
             "cells",
         )
 
@@ -119,11 +119,11 @@ class Row(ProxyBase):
         }
 
     def __repr__(self) -> str:
+        if self.state is ProxyState.STALE:
+            return "Row(<stale>)"
         native = self._getattr("_native")
         if native is None:
             return "Row(spec)"
-        if self._getattr("_stale"):
-            return "Row(<stale>)"
         return f"Row(handle={native!r})"
 
     def __bool__(self) -> bool:
@@ -189,13 +189,13 @@ class Table(ProxyBase):
     @property
     def rows(self) -> DocumentView[Row]:
         if not self._is_live:
-            return []  # type: ignore[return-value]
+            return DocumentView.empty(Row, "rows")
         self._check_valid()
         return DocumentView(
             self._getattr("_native"),
             self._getattr("_document"),
             self._get_lib(),
-            (Row,),
+            Row,
             "rows",
         )
 
@@ -206,13 +206,13 @@ class Table(ProxyBase):
     @property
     def cells(self) -> DocumentView[Cell]:
         if not self._is_live:
-            return []  # type: ignore[return-value]
+            return DocumentView.empty(Cell, "cells")
         self._check_valid()
         return DocumentView(
             self._getattr("_native"),
             self._getattr("_document"),
             self._get_lib(),
-            (Cell,),
+            Cell,
             "cells",
         )
 
@@ -250,12 +250,12 @@ class Table(ProxyBase):
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
+        if self.state is ProxyState.STALE:
+            return "Table(<stale>)"
         native = self._getattr("_native")
         if native is None:
             d = self._getattr("_data")
             return f"Table(rows={d.get('rows')}, cols={d.get('cols')})"
-        if self._getattr("_stale"):
-            return "Table(<stale>)"
         try:
             return f"Table(rows={len(self.rows)}, handle={native!r})"
         except Exception:

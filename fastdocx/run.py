@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any, Literal, Self
 
-from fastdocx._proxy.base import ProxyBase
+from fastdocx._proxy.base import ProxyBase, ProxyState
 from fastdocx._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
@@ -307,17 +307,17 @@ class Run(ProxyBase):
     def __add__(self, other: Run) -> Run:
         if type(other) is not Run:
             return NotImplemented
-        a_data = self._getattr("_data")
-        b_data = other._getattr("_data")
+        self_data = self._getattr("_data")
+        other_data = other._getattr("_data")
         # Check formatting compatibility (excluding text)
-        a_fmt = {k: v for k, v in a_data.items() if k != "text"}
-        b_fmt = {k: v for k, v in b_data.items() if k != "text"}
-        if a_fmt != b_fmt:
+        self_fmt = {k: v for k, v in self_data.items() if k != "text"}
+        other_fmt = {k: v for k, v in other_data.items() if k != "text"}
+        if self_fmt != other_fmt:
             raise ValueError(
                 "Cannot concatenate Runs with different formatting. "
                 "Use str concatenation on .text instead."
             )
-        return Run(self.text + other.text, **a_fmt)  # type: ignore[arg-type]
+        return Run(self.text + other.text, **self_fmt)
 
     # ------------------------------------------------------------------
     # Materialisation
@@ -382,13 +382,13 @@ class Run(ProxyBase):
         )
 
     def __repr__(self) -> str:
+        if self.state is ProxyState.STALE:
+            return "Run(<stale>)"
         native = self._getattr("_native")
         if native is None:
             data = self._getattr("_data")
             text = data.get("text", "")
             return f"Run({text!r})"
-        if self._getattr("_stale"):
-            return "Run(<stale>)"
         try:
             return f"Run(text={self.text!r}, handle={native!r})"
         except Exception:

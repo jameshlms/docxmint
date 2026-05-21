@@ -8,10 +8,19 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
 from fastdocx._proxy.base import ProxyBase
 from fastdocx.errors import NativeRuntimeError, OwnershipError
+
+_VT = TypeVar("_VT", bound=ProxyBase)
+
+ElemTypesArg = type[_VT] | tuple[type[_VT], ...]
+
+
+def _to_elem_tuple[T: ProxyBase](arg: ElemTypesArg[T]) -> tuple[type[T], ...]:
+    return (arg,) if isinstance(arg, type) else arg
+
 
 if TYPE_CHECKING:
     from fastdocx._native.handle import Handle
@@ -147,6 +156,15 @@ class CollectionMixin[T: ProxyBase]:
     # ------------------------------------------------------------------
 
     def append(self, element: T) -> None:
+        """Append the provided element to the collection of elements
+
+        Args:
+            element (T): The element to append, being of the same type that is supported by the collection.
+        Raises:
+            OwnershipError: Occurs if the element provided belongs to another document instead of being passed as a snapshot by calling snapshot(element).
+            ValueError: Occurs if the element already exists in the collection.
+            TypeError: Occurs if the element being appened is not of the same type specified by the collection.
+        """
         self._append_one(element)
 
     def extend(self, elements: Iterable[T]) -> None:
@@ -272,14 +290,21 @@ class DocumentView[T: ProxyBase](CollectionMixin[T]):
         parent_handle: int,
         document: Document,
         lib: Handle,
-        elem_types: tuple[type[T], ...],
+        elem_types: ElemTypesArg[T],
         collection_name: str,
     ) -> None:
         self._parent_handle = parent_handle
         self._document = document
         self._lib = lib
-        self._elem_types = elem_types
+        self._elem_types = _to_elem_tuple(elem_types)
         self._collection_name = collection_name
+
+    @staticmethod
+    def empty[VT: ProxyBase](
+        elem_types: ElemTypesArg[VT], collection_name: str
+    ) -> DocumentView[VT]:
+        """Return an empty, inert DocumentView with no native handle."""
+        return _SliceView([], None, None, _to_elem_tuple(elem_types), collection_name)
 
     def __bool__(self) -> bool:
         return self._count() > 0
@@ -309,13 +334,13 @@ class _SliceView[T: ProxyBase](DocumentView[T]):
         items: list[T],
         document: Document,
         lib: Handle,
-        elem_types: tuple[type[T], ...],
+        elem_types: ElemTypesArg[T],
         collection_name: str,
     ) -> None:
         self._items = items
         self._document = document
         self._lib = lib
-        self._elem_types = elem_types
+        self._elem_types = _to_elem_tuple(elem_types)
         self._collection_name = collection_name
 
     def _count(self) -> int:
@@ -324,6 +349,10 @@ class _SliceView[T: ProxyBase](DocumentView[T]):
     def __iter__(self) -> Iterator[T]:
         return iter(self._items)
 
+    @overload
+    def __getitem__(self, index: int) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> DocumentView[T]: ...
     def __getitem__(self, index: int | slice) -> T | DocumentView[T]:
         if isinstance(index, slice):
             return _SliceView(

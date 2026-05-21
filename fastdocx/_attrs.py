@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, overload
+
+if TYPE_CHECKING:
+    from fastdocx._proxy.base import ProxyState
+    from fastdocx.document import Document
 
 
 class RawAttrMixin:
@@ -9,5 +13,15 @@ class RawAttrMixin:
     def _setattr(self, name: str, value: Any) -> None:
         object.__setattr__(self, name, value)
 
+    @overload
+    def _getattr(self, name: Literal["_data"]) -> dict[str, Any]: ...
+    @overload
+    def _getattr(self, name: Literal["_native"]) -> int | None: ...
+    @overload
+    def _getattr(self, name: Literal["_document"]) -> Document | None: ...
+    @overload
+    def _getattr(self, name: Literal["_state"]) -> ProxyState: ...
+    @overload
+    def _getattr(self, name: str) -> Any: ...
     def _getattr(self, name: str) -> Any:
         return object.__getattribute__(self, name)

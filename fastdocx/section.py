@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastdocx._block import BlockContainerMixin
-from fastdocx._proxy.base import ProxyBase
+from fastdocx._proxy.base import ProxyBase, ProxyState
 from fastdocx._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
 
 
@@ -47,9 +47,9 @@ class Section(BlockContainerMixin, ProxyBase):
         }
 
     def __repr__(self) -> str:
+        if self.state is ProxyState.STALE:
+            return "Section(<stale>)"
         native = self._getattr("_native")
         if native is None:
             return "Section(spec)"
-        if self._getattr("_stale"):
-            return "Section(<stale>)"
         return f"Section(handle={native!r})"
