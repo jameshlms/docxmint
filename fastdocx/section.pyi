@@ -1,14 +1,22 @@
+from pathlib import Path
 from typing import Literal
 
-from fastdocx._proxy.base import ProxyBase
-from fastdocx.collection import DocumentView
-from fastdocx.paragraph import Paragraph
+from fastdocx._collection import DocumentView as DocumentView
+from fastdocx._proxy.base import ProxyBase as _ProxyBase
+from fastdocx.image import Image
+from fastdocx.paragraph import HorizontalRule, LineStyleArg, Paragraph
 from fastdocx.table import Table
 
-class Section(ProxyBase):
+class Section(_ProxyBase):
     orientation: Literal["portrait", "landscape"]
     page_width: float
     page_height: float
+    margin_top: float
+    margin_bottom: float
+    margin_left: float
+    margin_right: float
+    margin_header: float
+    margin_footer: float
     start_type: Literal["continuous", "newPage", "evenPage", "oddPage"]
     different_first_page: bool
 
@@ -17,5 +25,27 @@ class Section(ProxyBase):
     def paragraphs(self) -> DocumentView[Paragraph]: ...
     @property
     def tables(self) -> DocumentView[Table]: ...
+    def add_paragraph(self, text: str = ..., style: str = ...) -> Paragraph: ...
+    def add_heading(self, text: str = ..., level: int = ...) -> Paragraph: ...
+    def add_table(self, rows: int, cols: int, style: str = ...) -> Table: ...
+    def add_horizontal_rule(
+        self,
+        *,
+        line_style: LineStyleArg = ...,
+        line_width: float = ...,
+        line_color: str = ...,
+    ) -> HorizontalRule: ...
+    def add_bullet(self, text: str = ..., level: int = ...) -> Paragraph: ...
+    def add_numbered(self, text: str = ..., level: int = ...) -> Paragraph: ...
+    def add_image(
+        self,
+        src: str | Path | None = ...,
+        *,
+        data: bytes | None = ...,
+        content_type: str | None = ...,
+        width: float = ...,
+        height: float = ...,
+        alt_text: str = ...,
+    ) -> Image: ...
     def copy(self) -> Section: ...
     def __repr__(self) -> str: ...
