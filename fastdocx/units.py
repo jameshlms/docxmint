@@ -4,6 +4,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import ClassVar
 
+AUTO = "auto"
+
 
 @dataclass(frozen=True)
 class Color:
@@ -99,34 +101,30 @@ class Color:
         """Return a darker version by blending toward black."""
         return self.blend(Color(0, 0, 0), amount)
 
-    # ------------------------------------------------------------------
-    # Wire format
-    # ------------------------------------------------------------------
 
-    @classmethod
-    def _normalize(cls, value: object) -> str | None:
-        """Normalize a color input to bare ``RRGGBB`` for the native layer.
+def normalize_color_input(value: Color | str | None) -> str | None:
+    """Normalize a color input to bare ``RRGGBB`` for the native layer.
 
-        Accepts ``None``, ``'auto'``, a ``Color`` instance, ``'#RRGGBB'``,
-        or ``'RRGGBB'``. Raises ``ValueError`` for anything else.
-        """
-        if value is None:
-            return None
-        if value == "auto":
-            return "auto"
-        if isinstance(value, cls):
-            return str(value)
-        if isinstance(value, str):
-            s = value.lstrip("#")
-            if len(s) == 6:
-                try:
-                    int(s, 16)
-                    return s.upper()
-                except ValueError:
-                    pass
-        raise ValueError(
-            f"Invalid color {value!r}. Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
-        )
+    Accepts ``None``, ``'auto'``, a ``Color`` instance, ``'#RRGGBB'``,
+    or ``'RRGGBB'``. Raises ``ValueError`` for anything else.
+    """
+    if value is None:
+        return None
+    if value == AUTO:
+        return AUTO
+    if isinstance(value, Color):
+        return str(value)
+    if isinstance(value, str):  # type: ignore[reportUnnecessaryIsInstance]
+        s = value.lstrip("#")
+        if len(s) == 6:
+            try:
+                int(s, 16)
+                return s.upper()
+            except ValueError:
+                pass
+    raise ValueError(
+        f"Invalid color {value!r}. Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
+    )
 
 
 Color.BLACK = Color(0, 0, 0)

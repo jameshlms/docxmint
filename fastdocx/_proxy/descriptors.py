@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, overload
 
+from fastdocx.units import normalize_color_input
+
 if TYPE_CHECKING:
     from fastdocx._proxy.base import ProxyBase
 
@@ -252,9 +254,8 @@ class ColorProperty:
         return object.__getattribute__(obj, "_data").get(self._name, None)
 
     def __set__(self, obj: ProxyBase, value: Any) -> None:
-        from fastdocx.units import Color
 
-        normalized = Color._normalize(value)
+        normalized = normalize_color_input(value)
         native = object.__getattribute__(obj, "_native")
         if native is not None:
             obj._check_valid()

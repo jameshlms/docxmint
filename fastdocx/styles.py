@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Literal
 
+from fastdocx.units import normalize_color_input
+
 if TYPE_CHECKING:
     from fastdocx._native.handle import Handle
     from fastdocx.document import Document
@@ -135,9 +137,8 @@ class Style:
 
     @color.setter
     def color(self, value: str | None) -> None:
-        from fastdocx.units import Color
 
-        normalized = Color._normalize(value) if value is not None else ""
+        normalized = normalize_color_input(value) if value is not None else ""
         self._lib().set_str(self._handle, "color", normalized)
 
     @property
