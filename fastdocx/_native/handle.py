@@ -31,6 +31,7 @@ class Handle:
 
     def __init__(self, lib_path: str) -> None:
         self._lib = ctypes.CDLL(lib_path)
+        self._image_funcs_ready = False
         self._setup()
 
     def _setup(self) -> None:
@@ -113,6 +114,29 @@ class Handle:
         # Table-specific (tables require rows/cols at creation)
         c.add_table.argtypes = [ctypes.c_ssize_t, ctypes.c_int, ctypes.c_int]
         c.add_table.restype = ctypes.c_ssize_t
+
+    def _ensure_image_funcs(self) -> None:
+        if self._image_funcs_ready:
+            return
+        c = self._lib
+        c.add_image.argtypes = [
+            ctypes.c_ssize_t,  # parent handle
+            ctypes.c_char_p,  # image data ptr
+            ctypes.c_int,  # image data len
+            ctypes.c_char_p,  # content_type ptr
+            ctypes.c_int,  # content_type len
+            ctypes.c_int,  # width_emu
+            ctypes.c_int,  # height_emu
+        ]
+        c.add_image.restype = ctypes.c_ssize_t
+        c.get_image_data.argtypes = [
+            ctypes.c_ssize_t,  # handle
+            ctypes.c_char_p,  # buf
+            ctypes.c_int,  # buf_size
+            ctypes.POINTER(ctypes.c_int),  # required
+        ]
+        c.get_image_data.restype = ctypes.c_int
+        self._image_funcs_ready = True
 
     # ------------------------------------------------------------------
     # Document lifecycle
@@ -241,6 +265,48 @@ class Handle:
         if h == 0:
             raise NativeRuntimeError("add_table failed")
         return h
+
+    def add_image(
+        self,
+        parent_handle: int,
+        data: bytes,
+        content_type: str,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        self._ensure_image_funcs()
+        enc_ct = content_type.encode("utf-8")
+        h = int(
+            self._lib.add_image(
+                parent_handle,
+                data,
+                len(data),
+                enc_ct,
+                len(enc_ct),
+                width_emu,
+                height_emu,
+            )
+        )
+        if h == 0:
+            raise NativeRuntimeError("add_image failed")
+        return h
+
+    def get_image_data(self, handle: int) -> bytes:
+        self._ensure_image_funcs()
+        buf_size = 4096
+        while True:
+            buf = ctypes.create_string_buffer(buf_size)
+            required = ctypes.c_int(0)
+            n = int(self._lib.get_image_data(handle, buf, buf_size, ctypes.byref(required)))
+            if n < 0:
+                raise NativeRuntimeError("get_image_data failed")
+            if n == 0:
+                needed = required.value
+                if needed == 0:
+                    return b""
+                buf_size = needed + 1
+                continue
+            return buf.raw[:n]
 
     # ------------------------------------------------------------------
     # Batch write (used by Run.edit())
