@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace FastDocx.Native;
@@ -17,7 +18,12 @@ internal static unsafe partial class DocumentBuilder
             return elem switch
             {
                 DocElem d => CountBodyCollection(d, col),
-                ParaElem p => col is "runs" ? p.Para.Elements<Run>().Count() : -1,
+                ParaElem p => col switch
+                {
+                    "runs"   => p.Para.Elements<Run>().Count(r => !IsImageRun(r)),
+                    "images" => p.Para.Elements<Run>().Count(IsImageRun),
+                    _        => -1
+                },
                 TableElem t => col switch
                 {
                     "rows" => t.Table.Elements<TableRow>().Count(),
@@ -25,9 +31,13 @@ internal static unsafe partial class DocumentBuilder
                     _ => -1
                 },
                 RowElem r => col is "cells" ? r.Row.Elements<TableCell>().Count() : -1,
-                CellElem c => col is "paragraphs"
-                    ? c.Cell.Elements<Paragraph>().Count()
-                    : -1,
+                CellElem c => col switch
+                {
+                    "paragraphs" => c.Cell.Elements<Paragraph>().Count(),
+                    "tables"     => c.Cell.Elements<Table>().Count(),
+                    "body"       => c.Cell.ChildElements.Count(e => e is Paragraph || e is Table),
+                    _            => -1
+                },
                 _ => -1
             };
         }
@@ -36,6 +46,11 @@ internal static unsafe partial class DocumentBuilder
 
     private static int CountBodyCollection(DocElem d, string col)
     {
+        if (col == "styles")
+        {
+            return d.State.Document.MainDocumentPart
+                ?.StyleDefinitionsPart?.Styles?.Elements<Style>().Count() ?? 0;
+        }
         var body = GetBody(d);
         return col switch
         {
@@ -61,11 +76,14 @@ internal static unsafe partial class DocumentBuilder
             return elem switch
             {
                 DocElem d => GetBodyChild(d, handle, col, index),
-                ParaElem p when col is "runs" => GetRunChild(p, handle, index),
+                ParaElem p when col is "runs"   => GetRunChild(p, handle, index),
+                ParaElem p when col is "images" => GetImageRunChild(p, handle, index),
                 TableElem t when col is "rows" => GetRowChild(t, handle, index),
                 TableElem t when col is "cells" => GetFlatCellChild(t, handle, index),
                 RowElem r when col is "cells" => GetCellChild(r, handle, index),
                 CellElem c when col is "paragraphs" => GetCellParaChild(c, handle, index),
+                CellElem c when col is "tables"     => GetCellTableChild(c, handle, index),
+                CellElem c when col is "body"       => GetCellBodyChild(c, handle, index),
                 _ => 0
             };
         }
@@ -74,44 +92,85 @@ internal static unsafe partial class DocumentBuilder
 
     private static nint GetBodyChild(DocElem d, nint docHandle, string col, int index)
     {
+        if (col == "styles")
+        {
+            var styles = d.State.Document.MainDocumentPart
+                ?.StyleDefinitionsPart?.Styles?.Elements<Style>().ToList();
+            if (styles is null) return 0;
+            if (index < 0) index = styles.Count + index;
+            if (index < 0 || index >= styles.Count) return 0;
+            return GetOrCreateStyleHandle(styles[index], docHandle);
+        }
+        if (col.StartsWith("style:", StringComparison.Ordinal))
+        {
+            var styleId = col[6..];
+            var stylesElem = d.State.Document.MainDocumentPart?.StyleDefinitionsPart?.Styles;
+            if (stylesElem is null) return 0;
+            var style = stylesElem.Elements<Style>()
+                .FirstOrDefault(s => s.StyleId?.Value == styleId);
+            return style is null ? 0 : GetOrCreateStyleHandle(style, docHandle);
+        }
+        if (col == "default_style")
+        {
+            var stylesElem = d.State.Document.MainDocumentPart?.StyleDefinitionsPart?.Styles;
+            if (stylesElem is null) return 0;
+            var style = stylesElem.Elements<Style>()
+                .FirstOrDefault(s => s.Default?.Value == true);
+            return style is null ? 0 : GetOrCreateStyleHandle(style, docHandle);
+        }
         var body = GetBody(d);
-        if (col == "body")
+        switch (col)
         {
-            var all = body.ChildElements.Where(e => e is Paragraph || e is Table).ToList();
-            if (index < 0) index = all.Count + index;
-            if (index < 0 || index >= all.Count) return 0;
-            return all[index] switch
+            case "body":
             {
-                Paragraph p => GetOrCreateParagraphHandle(p, docHandle),
-                Table t => GetOrCreateTableHandle(t, GetTableCells(t), GetTableRows(t), GetTableCols(t), docHandle),
-                _ => 0
-            };
+                var all = body.ChildElements.Where(e => e is Paragraph || e is Table).ToList();
+                if (index < 0) index = all.Count + index;
+                if (index < 0 || index >= all.Count) return 0;
+                return all[index] switch
+                {
+                    Paragraph p => GetOrCreateParagraphHandle(p, docHandle),
+                    Table t => GetOrCreateTableHandle(t, GetTableCells(t), GetTableRows(t), GetTableCols(t), docHandle),
+                    _ => 0
+                };
+            }
+            case "paragraphs":
+            {
+                var paras = body.Elements<Paragraph>().ToList();
+                if (index < 0) index = paras.Count + index;
+                if (index < 0 || index >= paras.Count) return 0;
+                return GetOrCreateParagraphHandle(paras[index], docHandle);
+            }
+            case "tables":
+            {
+                var tables = body.Elements<Table>().ToList();
+                if (index < 0) index = tables.Count + index;
+                if (index < 0 || index >= tables.Count) return 0;
+                var table = tables[index];
+                return GetOrCreateTableHandle(
+                    table, GetTableCells(table), GetTableRows(table), GetTableCols(table), docHandle);
+            }
+            default:
+                return 0;
         }
-        if (col == "paragraphs")
-        {
-            var paras = body.Elements<Paragraph>().ToList();
-            if (index < 0) index = paras.Count + index;
-            if (index < 0 || index >= paras.Count) return 0;
-            return GetOrCreateParagraphHandle(paras[index], docHandle);
-        }
-        if (col == "tables")
-        {
-            var tables = body.Elements<Table>().ToList();
-            if (index < 0) index = tables.Count + index;
-            if (index < 0 || index >= tables.Count) return 0;
-            var table = tables[index];
-            return GetOrCreateTableHandle(
-                table, GetTableCells(table), GetTableRows(table), GetTableCols(table), docHandle);
-        }
-        return 0;
     }
 
     private static nint GetRunChild(ParaElem p, nint docHandle, int index)
     {
-        var runs = p.Para.Elements<Run>().ToList();
+        var runs = p.Para.Elements<Run>().Where(r => !IsImageRun(r)).ToList();
         if (index < 0) index = runs.Count + index;
         if (index < 0 || index >= runs.Count) return 0;
         return GetOrCreateRunHandle(runs[index], docHandle);
+    }
+
+    private static nint GetImageRunChild(ParaElem p, nint docHandle, int index)
+    {
+        var imageRuns = p.Para.Elements<Run>().Where(IsImageRun).ToList();
+        if (index < 0) index = imageRuns.Count + index;
+        if (index < 0 || index >= imageRuns.Count) return 0;
+        var run = imageRuns[index];
+        var relId = GetRunImageRelId(run);
+        if (relId is null) return 0;
+        return GetOrCreateImageHandle(run, relId, p.DocHandle);
     }
 
     private static nint GetRowChild(TableElem t, nint tableHandle, int index)
@@ -153,6 +212,30 @@ internal static unsafe partial class DocumentBuilder
         return GetOrCreateParagraphHandle(paras[index], docHandle);
     }
 
+    private static nint GetCellTableChild(CellElem c, nint docHandle, int index)
+    {
+        var tables = c.Cell.Elements<Table>().ToList();
+        if (index < 0) index = tables.Count + index;
+        if (index < 0 || index >= tables.Count) return 0;
+        var table = tables[index];
+        return GetOrCreateTableHandle(
+            table, GetTableCells(table), GetTableRows(table), GetTableCols(table), docHandle);
+    }
+
+    private static nint GetCellBodyChild(CellElem c, nint docHandle, int index)
+    {
+        var all = c.Cell.ChildElements.Where(e => e is Paragraph || e is Table).ToList();
+        if (index < 0) index = all.Count + index;
+        if (index < 0 || index >= all.Count) return 0;
+        return all[index] switch
+        {
+            Paragraph p => GetOrCreateParagraphHandle(p, docHandle),
+            Table t     => GetOrCreateTableHandle(
+                t, GetTableCells(t), GetTableRows(t), GetTableCols(t), docHandle),
+            _ => 0
+        };
+    }
+
     // -----------------------------------------------------------------------
     // AppendChild — create and append a new child element
     // -----------------------------------------------------------------------
@@ -166,6 +249,7 @@ internal static unsafe partial class DocumentBuilder
             return (elem, ct) switch
             {
                 (DocElem d, "paragraph") => AppendParagraphToDoc(d, handle),
+                (DocElem d, "style") => AppendStyleToDoc(d, handle),
                 (ParaElem p, "run") => AppendRunToParagraph(p),
                 (CellElem c, "paragraph") => AppendParagraphToCell(c),
                 _ => 0
@@ -179,6 +263,17 @@ internal static unsafe partial class DocumentBuilder
         var para = new Paragraph();
         GetBody(d).AppendChild(para);
         return GetOrCreateParagraphHandle(para, docHandle);
+    }
+
+    private static nint AppendStyleToDoc(DocElem d, nint docHandle)
+    {
+        var mainPart = d.State.Document.MainDocumentPart!;
+        var stylesPart = mainPart.StyleDefinitionsPart
+            ?? mainPart.AddNewPart<StyleDefinitionsPart>();
+        stylesPart.Styles ??= new Styles();
+        var style = new Style { Type = StyleValues.Paragraph };
+        stylesPart.Styles.AppendChild(style);
+        return GetOrCreateStyleHandle(style, docHandle);
     }
 
     private static nint AppendRunToParagraph(ParaElem p)
@@ -217,6 +312,11 @@ internal static unsafe partial class DocumentBuilder
                     r.Run.Remove();
                     return 0;
 
+                case ImageElem img:
+                    SImageHandles.TryRemove(img.Run, out _);
+                    img.Run.Remove();
+                    return 0;
+
                 case TableElem t:
                     STableHandles.TryRemove(t.Table, out _);
                     RemoveTableRegistrations(t.Table);
@@ -233,6 +333,11 @@ internal static unsafe partial class DocumentBuilder
                     SCellHandles.TryRemove(c.Cell, out _);
                     return 0;
 
+                case StyleElem s:
+                    SStyleHandles.TryRemove(s.Style, out _);
+                    s.Style.Remove();
+                    return 0;
+
                 default:
                     return -1;
             }
@@ -246,6 +351,8 @@ internal static unsafe partial class DocumentBuilder
         {
             if (SRunHandles.TryRemove(run, out var rh))
                 SElements.TryRemove(rh, out _);
+            if (SImageHandles.TryRemove(run, out var ih))
+                SElements.TryRemove(ih, out _);
         }
     }
 
@@ -282,29 +389,53 @@ internal static unsafe partial class DocumentBuilder
     // AddTable — table creation requires rows/cols at construction time
     // -----------------------------------------------------------------------
 
-    internal static nint AddTable(nint docHandle, int rows, int cols)
+    internal static nint AddTable(nint parentHandle, int rows, int cols)
     {
-        if (!SElements.TryGetValue(docHandle, out var elem) || elem is not DocElem d)
-            return 0;
+        if (!SElements.TryGetValue(parentHandle, out var elem)) return 0;
         try
         {
-            var table = BuildTable(rows, cols, out var cells);
-            GetBody(d).AppendChild(table);
-            var tableHandle = GetOrCreateTableHandle(table, cells, rows, cols, docHandle);
-
-            // Pre-register all rows and cells so they get stable handles.
-            var rowList = table.Elements<TableRow>().ToList();
-            for (var r = 0; r < rowList.Count; r++)
+            return elem switch
             {
-                var rowHandle = GetOrCreateRowHandle(rowList[r], r, tableHandle, docHandle);
-                var cellList = rowList[r].Elements<TableCell>().ToList();
-                for (var c = 0; c < cellList.Count; c++)
-                    GetOrCreateCellHandle(cellList[c], r, c, rowHandle, docHandle);
-            }
-
-            return tableHandle;
+                DocElem d  => AddTableToDoc(d, parentHandle, rows, cols),
+                CellElem c => AddTableToCell(c, rows, cols),
+                _          => 0
+            };
         }
         catch { return 0; }
+    }
+
+    private static nint AddTableToDoc(DocElem d, nint docHandle, int rows, int cols)
+    {
+        var table = BuildTable(rows, cols, out var cells);
+        GetBody(d).AppendChild(table);
+        return RegisterTableHandles(table, cells, rows, cols, docHandle);
+    }
+
+    private static nint AddTableToCell(CellElem c, int rows, int cols)
+    {
+        var table = BuildTable(rows, cols, out var cells);
+        // OpenXML requires cells to end with a paragraph; insert before the terminal one.
+        var lastPara = c.Cell.Elements<Paragraph>().LastOrDefault();
+        if (lastPara is not null)
+            c.Cell.InsertBefore(table, lastPara);
+        else
+            c.Cell.AppendChild(table);
+        return RegisterTableHandles(table, cells, rows, cols, c.DocHandle);
+    }
+
+    private static nint RegisterTableHandles(
+        Table table, TableCell[,] cells, int rows, int cols, nint docHandle)
+    {
+        var tableHandle = GetOrCreateTableHandle(table, cells, rows, cols, docHandle);
+        var rowList = table.Elements<TableRow>().ToList();
+        for (var r = 0; r < rowList.Count; r++)
+        {
+            var rowHandle = GetOrCreateRowHandle(rowList[r], r, tableHandle, docHandle);
+            var cellList = rowList[r].Elements<TableCell>().ToList();
+            for (var c = 0; c < cellList.Count; c++)
+                GetOrCreateCellHandle(cellList[c], r, c, rowHandle, docHandle);
+        }
+        return tableHandle;
     }
 
     private static int GetTableRows(Table table) => table.Elements<TableRow>().Count();

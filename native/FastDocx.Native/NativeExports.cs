@@ -88,4 +88,20 @@ public static unsafe class NativeExports
     [UnmanagedCallersOnly(EntryPoint = "add_table", CallConvs = [typeof(CallConvCdecl)])]
     public static nint AddTable(nint docHandle, int rows, int cols) =>
         DocumentBuilder.AddTable(docHandle, rows, cols);
+
+    // -----------------------------------------------------------------------
+    // Image creation — requires bytes + dimensions at construction time
+    // -----------------------------------------------------------------------
+
+    [UnmanagedCallersOnly(EntryPoint = "add_image", CallConvs = [typeof(CallConvCdecl)])]
+    public static nint AddImage(
+        nint paraHandle,
+        byte* data, int dataLen,
+        byte* contentType, int contentTypeLen,
+        int widthEmu, int heightEmu) =>
+        DocumentBuilder.AddImage(paraHandle, data, dataLen, contentType, contentTypeLen, widthEmu, heightEmu);
+
+    [UnmanagedCallersOnly(EntryPoint = "get_image_data", CallConvs = [typeof(CallConvCdecl)])]
+    public static int GetImageData(nint handle, byte* buf, int bufLen, int* required) =>
+        DocumentBuilder.GetImageData(handle, buf, bufLen, required);
 }

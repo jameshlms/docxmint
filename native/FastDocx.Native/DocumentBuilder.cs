@@ -34,60 +34,52 @@ internal sealed class ParaElem(Paragraph para, nint docHandle) : ElemWrapper(doc
     public readonly Paragraph Para = para;
 }
 
-internal sealed class RunElem : ElemWrapper
+internal sealed class RunElem(Run run, nint docHandle) : ElemWrapper(docHandle)
 {
     public override string TypeName => "run";
-    public readonly Run Run;
-    public RunElem(Run run, nint docHandle) : base(docHandle) => Run = run;
+    public readonly Run Run = run;
 }
 
-internal sealed class TableElem : ElemWrapper
+internal sealed class TableElem(Table table, TableCell[,] cells, int rows, int cols, nint docHandle)
+    : ElemWrapper(docHandle)
 {
     public override string TypeName => "table";
-    public readonly Table Table;
-    public readonly TableCell[,] Cells;
-    public readonly int Rows;
-    public readonly int Cols;
-    public TableElem(Table table, TableCell[,] cells, int rows, int cols, nint docHandle)
-        : base(docHandle)
-    {
-        Table = table;
-        Cells = cells;
-        Rows = rows;
-        Cols = cols;
-    }
+    public readonly Table Table = table;
+    public readonly TableCell[,] Cells = cells;
+    public readonly int Rows = rows;
+    public readonly int Cols = cols;
 }
 
-internal sealed class RowElem : ElemWrapper
+internal sealed class RowElem(TableRow row, int rowIdx, nint tableHandle, nint docHandle)
+    : ElemWrapper(docHandle)
 {
     public override string TypeName => "row";
-    public readonly TableRow Row;
-    public readonly int RowIdx;
-    public readonly nint TableHandle;
-    public RowElem(TableRow row, int rowIdx, nint tableHandle, nint docHandle)
-        : base(docHandle)
-    {
-        Row = row;
-        RowIdx = rowIdx;
-        TableHandle = tableHandle;
-    }
+    public readonly TableRow Row = row;
+    public readonly int RowIdx = rowIdx;
+    public readonly nint TableHandle = tableHandle;
 }
 
-internal sealed class CellElem : ElemWrapper
+internal sealed class CellElem(TableCell cell, int rowIdx, int colIdx, nint rowHandle, nint docHandle)
+    : ElemWrapper(docHandle)
 {
     public override string TypeName => "cell";
-    public readonly TableCell Cell;
-    public readonly int RowIdx;
-    public readonly int ColIdx;
-    public readonly nint RowHandle;
-    public CellElem(TableCell cell, int rowIdx, int colIdx, nint rowHandle, nint docHandle)
-        : base(docHandle)
-    {
-        Cell = cell;
-        RowIdx = rowIdx;
-        ColIdx = colIdx;
-        RowHandle = rowHandle;
-    }
+    public readonly TableCell Cell = cell;
+    public readonly int RowIdx = rowIdx;
+    public readonly int ColIdx = colIdx;
+    public readonly nint RowHandle = rowHandle;
+}
+
+internal sealed class ImageElem(Run run, string relId, nint docHandle) : ElemWrapper(docHandle)
+{
+    public override string TypeName => "image";
+    public readonly Run Run = run;
+    public readonly string RelId = relId;
+}
+
+internal sealed class StyleElem(Style style, nint docHandle) : ElemWrapper(docHandle)
+{
+    public override string TypeName => "style";
+    public readonly Style Style = style;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +97,8 @@ internal static unsafe partial class DocumentBuilder
     private static readonly ConcurrentDictionary<Table, nint> STableHandles = new();
     private static readonly ConcurrentDictionary<TableRow, nint> SRowHandles = new();
     private static readonly ConcurrentDictionary<TableCell, nint> SCellHandles = new();
+    private static readonly ConcurrentDictionary<Run, nint> SImageHandles = new();
+    private static readonly ConcurrentDictionary<Style, nint> SStyleHandles = new();
 
     private static long _sNextHandle = 1;
     private static nint NextHandle() => (nint)Interlocked.Increment(ref _sNextHandle);
@@ -131,7 +125,7 @@ internal static unsafe partial class DocumentBuilder
 
     // --- Handle factory methods (lazy, stable) ---
 
-    internal static nint GetOrCreateParagraphHandle(Paragraph para, nint docHandle)
+    private static nint GetOrCreateParagraphHandle(Paragraph para, nint docHandle)
     {
         if (SParagraphHandles.TryGetValue(para, out var h)) return h;
         h = NextHandle();
@@ -140,7 +134,7 @@ internal static unsafe partial class DocumentBuilder
         return h;
     }
 
-    internal static nint GetOrCreateRunHandle(Run run, nint docHandle)
+    private static nint GetOrCreateRunHandle(Run run, nint docHandle)
     {
         if (SRunHandles.TryGetValue(run, out var h)) return h;
         h = NextHandle();
@@ -149,7 +143,7 @@ internal static unsafe partial class DocumentBuilder
         return h;
     }
 
-    internal static nint GetOrCreateTableHandle(
+    private static nint GetOrCreateTableHandle(
         Table table, TableCell[,] cells, int rows, int cols, nint docHandle)
     {
         if (STableHandles.TryGetValue(table, out var h)) return h;
@@ -159,7 +153,7 @@ internal static unsafe partial class DocumentBuilder
         return h;
     }
 
-    internal static nint GetOrCreateRowHandle(
+    private static nint GetOrCreateRowHandle(
         TableRow row, int rowIdx, nint tableHandle, nint docHandle)
     {
         if (SRowHandles.TryGetValue(row, out var h)) return h;
@@ -169,13 +163,31 @@ internal static unsafe partial class DocumentBuilder
         return h;
     }
 
-    internal static nint GetOrCreateCellHandle(
+    private static nint GetOrCreateCellHandle(
         TableCell cell, int rowIdx, int colIdx, nint rowHandle, nint docHandle)
     {
         if (SCellHandles.TryGetValue(cell, out var h)) return h;
         h = NextHandle();
         SCellHandles[cell] = h;
         SElements[h] = new CellElem(cell, rowIdx, colIdx, rowHandle, docHandle);
+        return h;
+    }
+
+    private static nint GetOrCreateImageHandle(Run run, string relId, nint docHandle)
+    {
+        if (SImageHandles.TryGetValue(run, out var h)) return h;
+        h = NextHandle();
+        SImageHandles[run] = h;
+        SElements[h] = new ImageElem(run, relId, docHandle);
+        return h;
+    }
+
+    private static nint GetOrCreateStyleHandle(Style style, nint docHandle)
+    {
+        if (SStyleHandles.TryGetValue(style, out var h)) return h;
+        h = NextHandle();
+        SStyleHandles[style] = h;
+        SElements[h] = new StyleElem(style, docHandle);
         return h;
     }
 

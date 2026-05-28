@@ -61,6 +61,8 @@ internal static unsafe partial class DocumentBuilder
         try
         {
             var pathStr = ReadStr(path, pathLen);
+            var body = d.State.Document.MainDocumentPart!.Document!.Body!;
+            EnsureTrailingParagraph(body);
             d.State.Document.Save();
             var bytes = d.State.Stream.ToArray();
             File.WriteAllBytes(pathStr, bytes);
@@ -70,6 +72,15 @@ internal static unsafe partial class DocumentBuilder
         {
             return -1;
         }
+    }
+
+    private static void EnsureTrailingParagraph(Body body)
+    {
+        var last = body.LastChild;
+        bool needsTrailing = last is not Paragraph p
+            || p.ParagraphProperties?.ParagraphBorders?.GetFirstChild<BottomBorder>() is not null;
+        if (needsTrailing)
+            body.AppendChild(new Paragraph());
     }
 
     internal static void Dispose(nint handle)
@@ -100,6 +111,7 @@ internal static unsafe partial class DocumentBuilder
             case TableElem t: STableHandles.TryRemove(t.Table, out _);     break;
             case RowElem row: SRowHandles.TryRemove(row.Row, out _);       break;
             case CellElem c:  SCellHandles.TryRemove(c.Cell, out _);       break;
+            case StyleElem s: SStyleHandles.TryRemove(s.Style, out _);     break;
         }
     }
 }
