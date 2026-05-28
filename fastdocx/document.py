@@ -3,89 +3,252 @@
 from __future__ import annotations
 
 import contextlib
+import os
+import tempfile
 import threading
+import weakref
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
+from typing import IO, TYPE_CHECKING, Any, Self, overload
 
 import fastdocx._native.handle as _handle_mod
-from fastdocx._attrs import RawAttrMixin
 from fastdocx._block import BlockContainerMixin
+from fastdocx._collection import CollectionMixin
 from fastdocx._native.handle import Handle
 from fastdocx._proxy.base import ProxyBase
-from fastdocx.collection import CollectionMixin
 from fastdocx.errors import DocumentClosedError
+from fastdocx.paragraph import Paragraph
+from fastdocx.table import Table
 
 if TYPE_CHECKING:
-    from fastdocx.collection import DocumentView
+    from fastdocx._collection import DocumentView
+    from fastdocx.formats import PageMargins
     from fastdocx.section import Section
     from fastdocx.styles import StyleCollection
 
-DocumentElementT = TypeVar("DocumentElementT", bound="ProxyBase")
+_PathArg = str | os.PathLike[str] | IO[bytes]
 
 _active_count = 0
 _active_count_lock = threading.Lock()
 
 
-class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
+def _resolve_open_path(path: _PathArg) -> tuple[str, str | None]:
+    """Return ``(str_path, tmp_path)``.
+
+    For ``str`` / ``PathLike`` inputs *tmp_path* is ``None``.  For ``IO``
+    inputs the bytes are written to a temporary file; *tmp_path* is its path
+    and the caller must delete it when the native handle is released.
+    """
+    if isinstance(path, (str, os.PathLike)):
+        return os.fspath(path), None
+    data = path.read()
+    fd, tmp_path = tempfile.mkstemp(suffix=".docx")
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
+    return tmp_path, tmp_path
+
+
+def _type_name_map() -> dict[type, str]:
+    from fastdocx.section import Section
+
+    return {
+        Paragraph: "paragraphs",
+        Table: "tables",
+        Section: "sections",
+    }
+
+
+def _collection_for_type(t: type) -> str:
+    return _type_name_map().get(t, "body")
+
+
+class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     """A DOCX document backed by the FastDocx native library.
 
-    The document itself is the body collection — iterate it, append to it,
-    and access filtered views via `.paragraphs`, `.tables`, etc.
+    The document is the body collection — iterate it, append to it, and access
+    typed filtered views via ``.paragraphs``, ``.tables``, ``.sections``, etc.
 
-    Use as a context manager for deterministic cleanup::
+    All document data lives in the C# native layer. Python proxies (Paragraph, Run,
+    Table, …) hold only integer handles. Every property access crosses the FFI boundary.
+
+    Prefer the context manager for deterministic cleanup:
+
+    .. code-block:: python
 
         with Document.open("report.docx") as doc:
-            doc.paragraphs.first.text = "Updated"
+            doc.paragraphs[0].text = "Updated"
             doc.save()
 
-    Or without a context manager (requires explicit close or GC)::
+    Without a context manager, call ``.close()`` explicitly:
+
+    .. code-block:: python
 
         doc = Document()
-        doc.paragraphs.append(Paragraph("Hello"))
+        doc.add_paragraph("Hello")
         doc.save("output.docx")
         doc.close()
+
+    Closing an already-closed document is safe (idempotent). Forgetting to close
+    triggers a ``ResourceWarning`` when the object is garbage-collected.
     """
 
     _lib: Handle
     _handle: int
     _path: str | None
     _edit_path: str | None
+    _tmp_path: str | None
+    _io_edit: IO[bytes] | None
     _open: bool
+    _finalizer: weakref.finalize[[Handle, int, str | None], None]
     _collection_name = "body"
+
+    @staticmethod
+    def _dispose(lib: Handle, handle: int, tmp_path: str | None) -> None:
+        with contextlib.suppress(Exception):
+            lib.dispose(handle)
+        if tmp_path:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+
+    def _get_lib(self) -> Handle:
+        return object.__getattribute__(self, "_lib")
+
+    def _get_handle(self) -> int:
+        return object.__getattribute__(self, "_handle")
+
+    def _get_path(self) -> str | None:
+        return object.__getattribute__(self, "_path")
+
+    def _get_edit_path(self) -> str | None:
+        return object.__getattribute__(self, "_edit_path")
+
+    def _get_tmp_path(self) -> str | None:
+        return object.__getattribute__(self, "_tmp_path")
+
+    def _get_io_edit(self) -> IO[bytes] | None:
+        return object.__getattribute__(self, "_io_edit")
+
+    def _get_open(self) -> bool:
+        return object.__getattribute__(self, "_open")
+
+    def _get_finalizer(self) -> weakref.finalize[[Handle, int, str | None], None]:
+        return object.__getattribute__(self, "_finalizer")
+
+    def _set_lib(self, lib: Handle) -> None:
+        object.__setattr__(self, "_lib", lib)
+
+    def _set_handle(self, handle: int) -> None:
+        object.__setattr__(self, "_handle", handle)
+
+    def _set_path(self, path: str | None) -> None:
+        object.__setattr__(self, "_path", path)
+
+    def _set_edit_path(self, edit_path: str | None) -> None:
+        object.__setattr__(self, "_edit_path", edit_path)
+
+    def _set_tmp_path(self, tmp_path: str | None) -> None:
+        object.__setattr__(self, "_tmp_path", tmp_path)
+
+    def _set_io_edit(self, io_edit: IO[bytes] | None) -> None:
+        object.__setattr__(self, "_io_edit", io_edit)
+
+    def _set_open(self, open: bool) -> None:
+        object.__setattr__(self, "_open", open)
+
+    def _set_finalizer(self, finalizer: weakref.finalize[[Handle, int, str | None], None]) -> None:
+        object.__setattr__(self, "_finalizer", finalizer)
 
     def __init__(self) -> None:
         lib = _handle_mod.get_handle()
         handle = lib.create_document()
-        self._setattr("_lib", lib)
-        self._setattr("_handle", handle)
-        self._setattr("_path", None)
-        self._setattr("_edit_path", None)
-        self._setattr("_open", True)
+        self._set_path(None)
+        self._set_tmp_path(None)
+        self._set_lib(lib)
+        self._set_handle(handle)
+        self._set_edit_path(None)
+        self._set_io_edit(None)
+        self._set_open(True)
+        self._set_finalizer(weakref.finalize(self, Document._dispose, lib, handle, None))
 
     @classmethod
-    def open(cls, path: str) -> Document:
-        """Open an existing document for reading or writing."""
+    def open(cls, path: _PathArg) -> Document:
+        """Open an existing ``.docx`` file for reading or writing.
+
+        Args:
+            path: Filesystem path (``str`` or :class:`pathlib.Path`) or a
+                binary file-like object (``IO[bytes]``).  When an ``IO``
+                object is given its current contents are read immediately;
+                ``doc.path`` will be ``None``.
+
+        Returns:
+            A live ``Document`` backed by the given source.
+
+        Example:
+            .. code-block:: python
+
+                with Document.open("report.docx") as doc:
+                    for para in doc.paragraphs:
+                        print(para.text)
+
+                # from a byte stream
+                with open("report.docx", "rb") as f:
+                    with Document.open(f) as doc:
+                        print(doc.paragraphs[0].text)
+        """
+        str_path, tmp_path = _resolve_open_path(path)
         lib = _handle_mod.get_handle()
-        handle = lib.open_document(path)
+        handle = lib.open_document(str_path)
         doc = cls.__new__(cls)
-        doc._setattr("_lib", lib)
-        doc._setattr("_handle", handle)
-        doc._setattr("_path", path)
-        doc._setattr("_edit_path", None)
-        doc._setattr("_open", True)
+        doc._set_lib(lib)
+        doc._set_handle(handle)
+        doc._set_path(None if tmp_path else str_path)
+        doc._set_edit_path(None)
+        doc._set_tmp_path(tmp_path)
+        doc._set_io_edit(None)
+        doc._set_open(True)
+        doc._set_finalizer(weakref.finalize(doc, Document._dispose, lib, handle, tmp_path))
         return doc
 
     @classmethod
-    def edit(cls, path: str) -> Document:
-        """Open a document for in-place editing; saves back on context manager exit."""
+    def edit(cls, path: _PathArg) -> Document:
+        """Open a document for in-place editing.
+
+        Identical to ``open()`` except that the context manager automatically
+        saves back to *path* on ``__exit__``.  When *path* is an ``IO``
+        object the modified bytes are written back to it on exit.
+
+        Args:
+            path: Filesystem path (``str`` or :class:`pathlib.Path`) or a
+                binary file-like object (``IO[bytes]``).
+
+        Example:
+            .. code-block:: python
+
+                with Document.edit("report.docx") as doc:
+                    doc.paragraphs[0].text = "New heading"
+                # saved automatically
+
+                # round-trip through a buffer
+                buf = io.BytesIO(pathlib.Path("report.docx").read_bytes())
+                with Document.edit(buf) as doc:
+                    doc.paragraphs[0].text = "New heading"
+                buf.seek(0)
+                pathlib.Path("report.docx").write_bytes(buf.read())
+        """
+        str_path, tmp_path = _resolve_open_path(path)
+        io_edit = path if not isinstance(path, (str, os.PathLike)) else None
         lib = _handle_mod.get_handle()
-        handle = lib.open_document(path)
+        handle = lib.open_document(str_path)
         doc = cls.__new__(cls)
-        doc._setattr("_lib", lib)
-        doc._setattr("_handle", handle)
-        doc._setattr("_path", path)
-        doc._setattr("_edit_path", path)
-        doc._setattr("_open", True)
+        doc._set_lib(lib)
+        doc._set_handle(handle)
+        doc._set_path(None if tmp_path else str_path)
+        doc._set_edit_path(str_path)
+        doc._set_tmp_path(tmp_path)
+        doc._set_io_edit(io_edit)
+        doc._set_open(True)
+        doc._set_finalizer(weakref.finalize(doc, Document._dispose, lib, handle, tmp_path))
         return doc
 
     # ------------------------------------------------------------------
@@ -112,7 +275,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
     # ------------------------------------------------------------------
 
     def _block_context(self) -> tuple[int, Any, Any]:
-        return (self._require_open(), self._getattr("_lib"), self)
+        return (self._require_open(), self._get_lib(), self)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -120,19 +283,26 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
 
     @property
     def is_open(self) -> bool:
-        return bool(self._getattr("_open"))
+        """A boolean indicator of whether the document is still open for operations or not.
+
+        Returns:
+            bool: The indicator of whether the document is open or not.
+        """
+        return bool(self._get_open())
 
     @property
     def path(self) -> str | None:
-        return self._getattr("_path")
+        """The filesystem path associated with this document, or ``None`` for new documents.
+
+        Updated after every successful ``save()`` call.
+        """
+        return self._get_path()
 
     def close(self) -> None:
         """Release the native document handle. Idempotent."""
-        if self._getattr("_open"):
-            lib: Handle = self._getattr("_lib")
-            handle: int = self._getattr("_handle")
-            self._setattr("_open", False)
-            lib.dispose(handle)
+        if self._get_open():
+            self._set_open(False)
+            self._get_finalizer()()
 
     def __enter__(self) -> Self:
         global _active_count
@@ -142,55 +312,61 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
 
     def __exit__(self, *_: object) -> None:
         global _active_count
-        edit_path: str | None = self._getattr("_edit_path")
-        if edit_path and self._getattr("_open"):
-            self.save(edit_path)
+        if self._get_open():
+            io_edit: IO[bytes] | None = self._get_io_edit()
+            edit_path: str | None = self._get_edit_path()
+            if io_edit is not None:
+                self.save(io_edit)
+            elif edit_path:
+                self.save(edit_path)
         self.close()
         with _active_count_lock:
             _active_count -= 1
 
-    def __del__(self) -> None:
-        try:
-            if self._getattr("_open"):
-                import warnings
-
-                warnings.warn(
-                    f"Unclosed {self!r}. Use a context manager or call .close().",
-                    ResourceWarning,
-                    stacklevel=2,
-                    source=self,
-                )
-        except Exception:
-            pass
-        with contextlib.suppress(Exception):
-            self.close()
-
     def _require_open(self) -> int:
-        if not self._getattr("_open"):
+        if not self._get_open():
             raise DocumentClosedError(
                 "Document is closed. "
                 "Call .copy() inside the context manager to use data outside it."
             )
-        return self._getattr("_handle")
+        return self._get_handle()
 
     # ------------------------------------------------------------------
     # Save
     # ------------------------------------------------------------------
 
-    def save(self, path: str | None = None) -> None:
+    def save(self, path: _PathArg | None = None) -> None:
         """Save the document.
 
-        If *path* is None and the document was opened from or saved to a path,
-        saves back to that path. Otherwise *path* must be provided.
+        Args:
+            path: Destination as a ``str``, :class:`pathlib.Path`, or binary
+                ``IO[bytes]`` object.  If omitted, saves back to the path the
+                document was opened from or last saved to.  An ``IO`` target
+                never updates ``doc.path``.
+
+        Raises:
+            ValueError: If *path* is ``None`` and no associated path exists.
         """
-        target = path or self._getattr("_path")
+        target: _PathArg | None = path if path is not None else self._get_path()
         if target is None:
             raise ValueError(
                 "No path provided and document has no associated path. Pass a path to save()."
             )
-        lib: Handle = self._getattr("_lib")
-        lib.save_document(self._require_open(), target)
-        self._setattr("_path", target)
+        lib: Handle = self._get_lib()
+        if isinstance(target, (str, os.PathLike)):
+            str_target = os.fspath(target)
+            lib.save_document(self._require_open(), str_target)
+            self._set_path(str_target)
+        else:
+            fd, tmp = tempfile.mkstemp(suffix=".docx")
+            os.close(fd)
+            try:
+                lib.save_document(self._require_open(), tmp)
+                with open(tmp, "rb") as f:
+                    target.write(f.read())
+            finally:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
 
     # ------------------------------------------------------------------
     # Properties
@@ -208,37 +384,42 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
 
     @property
     def author(self) -> str:
-        lib: Handle = self._getattr("_lib")
+        """Core property: document author (``dc:creator``)."""
+        lib: Handle = self._get_lib()
         return lib.get_str(self._require_open(), "author")
 
     @author.setter
     def author(self, value: str) -> None:
-        lib: Handle = self._getattr("_lib")
+        lib: Handle = self._get_lib()
         lib.set_str(self._require_open(), "author", value)
 
     @property
     def title(self) -> str:
-        lib: Handle = self._getattr("_lib")
+        """Core property: document title (``dc:title``)."""
+        lib: Handle = self._get_lib()
         return lib.get_str(self._require_open(), "title")
 
     @title.setter
     def title(self, value: str) -> None:
-        lib: Handle = self._getattr("_lib")
+        lib: Handle = self._get_lib()
         lib.set_str(self._require_open(), "title", value)
 
     @property
     def subject(self) -> str:
-        lib: Handle = self._getattr("_lib")
+        """Core property: document subject (``dc:subject``). Read-only."""
+        lib: Handle = self._get_lib()
         return lib.get_str(self._require_open(), "subject")
 
     @property
     def description(self) -> str:
-        lib: Handle = self._getattr("_lib")
+        """Core property: document description / abstract (``dc:description``). Read-only."""
+        lib: Handle = self._get_lib()
         return lib.get_str(self._require_open(), "description")
 
     @property
     def language(self) -> str:
-        lib: Handle = self._getattr("_lib")
+        """Core property: document language tag (``dc:language``), e.g. ``"en-US"``. Read-only."""
+        lib: Handle = self._get_lib()
         return lib.get_str(self._require_open(), "language")
 
     # ------------------------------------------------------------------
@@ -255,14 +436,106 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
     def sections(self, _: object) -> None:
         pass  # __iadd__ already mutated the native collection
 
+    @property
+    def margins(self) -> PageMargins:
+        """Page margins for the document, read from the first section.
+
+        On get: returns a :class:`~fastdocx.formats.PageMargins` reflecting the
+        first section's margins, or the defaults if no sections exist.
+
+        On set: applies the given margins to **all** sections. Accepts:
+
+        - A :class:`~fastdocx.formats.PageMargins` instance.
+        - A single ``float`` — sets top, bottom, left, and right uniformly.
+        - A 2-tuple ``(vertical, horizontal)`` — CSS-style shorthand.
+        - A 4-tuple ``(top, bottom, left, right)``.
+
+        Example:
+            .. code-block:: python
+
+                doc.margins = 0.75                    # tight, all sides
+                doc.margins = (0.75, 1.0)             # 0.75 top/bottom, 1.0 left/right
+                doc.margins = PageMargins(left=0.5, right=0.5)
+        """
+        from fastdocx.formats import PageMargins
+
+        secs = self.sections
+        if len(secs) == 0:
+            return PageMargins()
+        s = secs[0]
+        return PageMargins(
+            top=s.margin_top,
+            bottom=s.margin_bottom,
+            left=s.margin_left,
+            right=s.margin_right,
+            header=s.margin_header,
+            footer=s.margin_footer,
+        )
+
+    @margins.setter
+    def margins(
+        self,
+        value: PageMargins | float | tuple[float, float] | tuple[float, float, float, float],
+    ) -> None:
+        from fastdocx.formats import PageMargins
+
+        if isinstance(value, (int, float)):
+            v = float(value)
+            pm = PageMargins(top=v, bottom=v, left=v, right=v)
+        elif isinstance(value, PageMargins):
+            pm = value
+        elif isinstance(value, tuple):  # type: ignore
+            if len(value) == 2:
+                vert, horiz = float(value[0]), float(value[1])
+                pm = PageMargins(top=vert, bottom=vert, left=horiz, right=horiz)
+            elif len(value) == 4:
+                pm = PageMargins(
+                    top=float(value[0]),
+                    bottom=float(value[1]),
+                    left=float(value[2]),
+                    right=float(value[3]),
+                )
+            else:
+                raise ValueError(
+                    "margins tuple must have 2 elements (vertical, horizontal) "
+                    "or 4 elements (top, bottom, left, right)."
+                )
+        else:
+            raise TypeError(
+                f"margins must be a PageMargins, float, or tuple; got {type(value).__name__!r}"
+            )
+        for section in self.sections:
+            section.margin_top = pm.top
+            section.margin_bottom = pm.bottom
+            section.margin_left = pm.left
+            section.margin_right = pm.right
+            section.margin_header = pm.header
+            section.margin_footer = pm.footer
+
     # ------------------------------------------------------------------
     # group() — typed filtered view builder
     # ------------------------------------------------------------------
 
     def group[T: ProxyBase](self, types: list[type[T]]) -> DocumentView[T]:
-        from fastdocx.collection import DocumentView
+        """Return a live view over the body containing only the given element types.
 
-        lib: Handle = self._getattr("_lib")
+        Args:
+            types: A list of proxy types to include (e.g. ``[Paragraph, Table]``).
+
+        Returns:
+            A :class:`~fastdocx.collection.DocumentView` that yields only elements
+            whose type is in *types*.
+
+        Example:
+            .. code-block:: python
+
+                from fastdocx import Paragraph, Table
+                for elem in doc.group([Paragraph, Table]):
+                    print(type(elem).__name__, repr(elem))
+        """
+        from fastdocx._collection import DocumentView
+
+        lib: Handle = self._get_lib()
         return DocumentView(
             self._require_open(),
             self,
@@ -276,17 +549,17 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
     # ------------------------------------------------------------------
 
     def __bool__(self) -> bool:
-        return bool(self._getattr("_open"))
+        return bool(self._get_open())
 
     def __contains__(self, element: object) -> bool:
         from fastdocx._proxy.base import ProxyBase
 
         if not isinstance(element, ProxyBase):
             return False
-        native = object.__getattribute__(element, "_native")
+        native = element._get_native()  # type: ignore
         if native is None:
             return False
-        doc = object.__getattribute__(element, "_document")
+        doc = element._get_document()  # type: ignore
         return doc is self
 
     @overload
@@ -294,7 +567,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
     @overload
     def __getitem__(self, key: slice) -> DocumentView[ProxyBase]: ...
     @overload
-    def __getitem__(self, key: type[DocumentElementT]) -> DocumentView[DocumentElementT]: ...
+    def __getitem__[T: ProxyBase](self, key: type[T]) -> DocumentView[T]: ...
 
     def __getitem__(self, key: int | slice | type) -> ProxyBase | DocumentView[Any]:
         if isinstance(key, type):
@@ -308,30 +581,16 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase], RawAttrMixin):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Document):
             return NotImplemented
-        return self._getattr("_handle") == other._getattr("_handle")
+        return self._get_handle() == other._get_handle()
 
     def __hash__(self) -> int:
-        return hash(self._getattr("_handle"))
+        return hash(self._get_handle())
 
     def __repr__(self) -> str:
-        path = self._getattr("_path")
-        open_ = self._getattr("_open")
+        path = self._get_path()
+        open_ = self._get_open()
         try:
             n = len(self) if open_ else "?"
         except Exception:
             n = "?"
         return f"<Document path={path!r} elements={n} open={open_}>"
-
-
-def _collection_for_type(t: type) -> str:
-    from fastdocx.paragraph import Paragraph
-    from fastdocx.section import Section
-    from fastdocx.table import Table
-
-    if t is Paragraph:
-        return "paragraphs"
-    if t is Table:
-        return "tables"
-    if t is Section:
-        return "sections"
-    return "body"
