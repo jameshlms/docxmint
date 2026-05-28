@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Self, overload
 
 from fastdocx._proxy.base import ProxyBase
 from fastdocx.errors import NativeRuntimeError, OwnershipError
 
-_VT = TypeVar("_VT", bound=ProxyBase)
-
-ElemTypesArg = type[_VT] | tuple[type[_VT], ...]
+type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 
 
 def _to_elem_tuple[T: ProxyBase](arg: ElemTypesArg[T]) -> tuple[type[T], ...]:
@@ -28,10 +26,17 @@ if TYPE_CHECKING:
 
 
 class CollectionMixin[T: ProxyBase]:
-    """Shared live-collection behaviour for Document and DocumentView.
+    """Shared live-collection behaviour for :class:`Document` and :class:`DocumentView`.
 
-    Concrete subclasses must expose: _lib, _document, _elem_types,
-    _collection_name, and _parent_handle (property or int).
+    Provides list-like access (``__len__``, ``__iter__``, ``__getitem__``,
+    ``__contains__``) plus mutation helpers (``append``, ``extend``, ``remove``,
+    ``pop``, ``clear``).
+
+    Every method queries the native layer — there is no Python-side cache.
+    Indices and lengths reflect the document state at the time of the call.
+
+    Concrete subclasses must expose: ``_lib``, ``_document``, ``_elem_types``,
+    ``_collection_name``, and ``_parent_handle`` (property or int).
     """
 
     _lib: Handle
@@ -81,7 +86,10 @@ class CollectionMixin[T: ProxyBase]:
                 "Use doc.append() or doc[ParaType | TableType] instead."
             )
 
+    _EMU_PER_INCH = 914400
+
     def _append_one(self, element: T) -> T:
+        from fastdocx.image import Image
         from fastdocx.table import Table
 
         self._validate_element(element)
@@ -104,13 +112,33 @@ class CollectionMixin[T: ProxyBase]:
             filtered = {k: v for k, v in data.items() if k not in ("rows", "cols")}
             if filtered:
                 self._lib.set_many(child_handle, filtered)
+        elif isinstance(element, Image):
+            image_data: bytes = data.get("_image_data") or b""
+            content_type: str = data.get("_content_type") or "image/png"
+            width_emu = int(float(data.get("width", 0.0)) * self._EMU_PER_INCH)
+            height_emu = int(float(data.get("height", 0.0)) * self._EMU_PER_INCH)
+            child_handle = self._lib.add_image(
+                self._parent_handle, image_data, content_type, width_emu, height_emu
+            )
+            alt_text: str = data.get("alt_text", "")
+            if alt_text:
+                self._lib.set_str(child_handle, "alt_text", alt_text)
         else:
             child_handle = self._lib.append_child(
                 self._parent_handle,
                 type(element)._child_type_name,  # type: ignore[reportPrivateUsage]
             )
-            if data:
-                self._lib.set_many(child_handle, data)
+            runs_data: list[Any] | None = data.get("runs")
+            plain_data = {k: v for k, v in data.items() if k != "runs"}
+            if plain_data:
+                self._lib.set_many(child_handle, plain_data)
+            if runs_data:
+                for run in runs_data:
+                    run_data: dict[str, Any] = object.__getattribute__(run, "_data")
+                    run_handle = self._lib.append_child(child_handle, "run")
+                    if run_data:
+                        self._lib.set_many(run_handle, run_data)
+                    run._attach(run_handle, self._document)  # type: ignore[reportPrivateUsage]
 
         element._attach(child_handle, self._document)  # type: ignore[reportPrivateUsage]
         return element
@@ -168,11 +196,32 @@ class CollectionMixin[T: ProxyBase]:
         self._append_one(element)
 
     def extend(self, elements: Iterable[T]) -> None:
+        """Append each element in *elements* to the collection in order.
+
+        Args:
+            elements: An iterable of construction-state proxy objects of the
+                collection's element type.
+
+        Raises:
+            OwnershipError: If any element belongs to a different document.
+            ValueError: If any element is already live in this document.
+            TypeError: If any element is the wrong type for this collection.
+        """
         for elem in elements:
             self._append_one(elem)
 
     def insert(self, index: int, element: T) -> None:
-        # v1: append to end and note the limitation
+        """Append *element* to the collection (positional insert is not yet supported).
+
+        .. warning::
+            In v1 ``insert()`` always appends to the end, regardless of *index*,
+            and emits a :class:`FutureWarning`. Positional insertion will be
+            supported in a future release, at which point this behaviour will change.
+
+        Args:
+            index: Intended insertion position (currently ignored).
+            element: The element to append.
+        """
         self._append_one(element)
         warnings.warn(
             "insert() currently only supports appending to the end of the collection. "
@@ -182,6 +231,19 @@ class CollectionMixin[T: ProxyBase]:
         )
 
     def remove(self, element: T) -> None:
+        """Remove *element* from the collection and mark it stale.
+
+        After removal, any attempt to access *element*'s properties raises
+        :exc:`~fastdocx.errors.StaleProxyError`. Call ``snapshot()`` before
+        removing if you need to keep the data.
+
+        Args:
+            element: A live proxy that currently belongs to this collection.
+
+        Raises:
+            TypeError: If *element* is the wrong type for this collection.
+            ValueError: If *element* is not currently in a document.
+        """
         self._validate_element(element)
         native = object.__getattribute__(element, "_native")
         if native is None:
@@ -243,13 +305,11 @@ class CollectionMixin[T: ProxyBase]:
         return self._count()
 
     def __iter__(self) -> Iterator[T]:
-        n = self._count()
-        for i in range(n):
+        for i in range(len(self)):
             yield self._make_proxy(self._handle_at(i))
 
     def __reversed__(self) -> Iterator[T]:
-        n = self._count()
-        for i in range(n - 1, -1, -1):
+        for i in range(len(self) - 1, -1, -1):
             yield self._make_proxy(self._handle_at(i))
 
     def __contains__(self, element: object) -> bool:
@@ -282,7 +342,28 @@ class CollectionMixin[T: ProxyBase]:
 class DocumentView[T: ProxyBase](CollectionMixin[T]):
     """Live view over a typed subset of a document element's children.
 
-    All mutation and iteration methods reflect the live document state.
+    A ``DocumentView`` holds a reference to the parent handle and a collection
+    name. All reads and mutations go directly to the native layer — nothing is
+    cached in Python.
+
+    Obtained via collection properties on :class:`~fastdocx.document.Document`,
+    :class:`~fastdocx.paragraph.Paragraph`, :class:`~fastdocx.table.Table`, etc.:
+
+    .. code-block:: python
+
+        paras = doc.paragraphs          # DocumentView[Paragraph]
+        runs  = para.runs               # DocumentView[Run]
+        cells = table.rows[0].cells     # DocumentView[Cell]
+
+    Supports the full list protocol: iteration, indexing, slicing, ``len()``,
+    ``in``, ``+=``, ``append()``, ``extend()``, ``remove()``, ``pop()``,
+    ``clear()``, ``index()``, plus ``.first`` and ``.last`` shortcuts.
+
+    Two ``DocumentView`` objects over the same parent can be merged with ``|``:
+
+    .. code-block:: python
+
+        mixed = doc.paragraphs | doc.tables  # DocumentView[Paragraph | Table]
     """
 
     def __init__(

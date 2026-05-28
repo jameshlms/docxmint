@@ -1,13 +1,11 @@
 from collections.abc import Iterable, Iterator
-from typing import Self, TypeVar, overload
+from typing import Self, overload
 
 from fastdocx._native.handle import Handle
 from fastdocx._proxy.base import ProxyBase
 from fastdocx.document import Document
 
-_VT = TypeVar("_VT", bound=ProxyBase)
-
-ElemTypesArg = type[_VT] | tuple[type[_VT], ...]
+type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 
 class CollectionMixin[T: ProxyBase]:
     @property
@@ -42,7 +40,9 @@ class DocumentView[T: ProxyBase](CollectionMixin[T]):
         collection_name: str,
     ) -> None: ...
     @staticmethod
-    def empty(elem_types: ElemTypesArg[_VT], collection_name: str) -> DocumentView[_VT]: ...
+    def empty[VT: ProxyBase](
+        elem_types: ElemTypesArg[VT], collection_name: str
+    ) -> DocumentView[VT]: ...
     def __bool__(self) -> bool: ...
     def __or__[U: ProxyBase](self, other: DocumentView[U]) -> DocumentView[T | U]: ...
     def __repr__(self) -> str: ...
