@@ -35,7 +35,7 @@ internal static unsafe partial class DocumentBuilder
                 {
                     "paragraphs" => c.Cell.Elements<Paragraph>().Count(),
                     "tables"     => c.Cell.Elements<Table>().Count(),
-                    "body"       => c.Cell.ChildElements.Count(e => e is Paragraph || e is Table),
+                    "body"       => c.Cell.ChildElements.Count(e => e is Paragraph or Table),
                     _            => -1
                 },
                 _ => -1
@@ -54,7 +54,7 @@ internal static unsafe partial class DocumentBuilder
         var body = GetBody(d);
         return col switch
         {
-            "body" => body.ChildElements.Count(e => e is Paragraph || e is Table),
+            "body" => body.ChildElements.Count(e => e is Paragraph or Table),
             "paragraphs" => body.Elements<Paragraph>().Count(),
             "tables" => body.Elements<Table>().Count(),
             "sections" => 0,   // sections not yet implemented
