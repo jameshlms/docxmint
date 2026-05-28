@@ -18,6 +18,7 @@ Rules:
 
 from __future__ import annotations
 
+import contextlib
 import enum
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Self
@@ -35,6 +36,8 @@ class ProxyState(enum.Enum):
     STALE = "stale"
 
 
+UNSET: Any = object()
+
 if TYPE_CHECKING:
     from fastdocx._native.handle import Handle
     from fastdocx.document import Document
@@ -49,19 +52,61 @@ class ProxyBase(RawAttrMixin):
     _document: Document | None
     _state: ProxyState
 
+    def _get_data(self) -> dict[str, Any]:
+        """Return the data dict for this proxy, whether live or snapshot."""
+        if self._is_live:
+            self._check_valid()
+        return self._getattr("_data")
+
+    def _set_data(self, data: dict[str, Any]) -> None:
+        """Set all data at once when materialising a snapshot."""
+        self._setattr("_data", data)
+
+    def _get_child_type_name(self) -> str:
+        """Return the child type name for this proxy, used in error messages."""
+        return self._getattr("_child_type_name")
+
+    def _set_child_type_name(self, name: str) -> None:
+        """Set the child type name for this proxy, used in error messages."""
+        self._setattr("_child_type_name", name)
+
+    def _get_native(self) -> int | None:
+        """Return the native handle for this proxy, or None if not live."""
+        return self._getattr("_native")
+
+    def _set_native(self, native: int | None) -> None:
+        """Set the native handle for this proxy."""
+        self._setattr("_native", native)
+
+    def _get_document(self) -> Document | None:
+        """Return the associated Document for this proxy, or None if not live."""
+        return self._getattr("_document")
+
+    def _set_document(self, document: Document | None) -> None:
+        """Set the associated Document for this proxy."""
+        self._setattr("_document", document)
+
+    def _get_state(self) -> ProxyState:
+        """Return the current ProxyState for this proxy."""
+        return self._getattr("_state")
+
+    def _set_state(self, state: ProxyState) -> None:
+        """Set the current ProxyState for this proxy."""
+        self._setattr("_state", state)
+
     def __init__(self) -> None:
-        self._setattr("_native", None)
-        self._setattr("_document", None)
-        self._setattr("_state", ProxyState.CONSTRUCTION)
-        self._setattr("_data", {})
+        self._set_native(None)
+        self._set_document(None)
+        self._set_state(ProxyState.CONSTRUCTION)
+        self._set_data(dict())
 
     @classmethod
     def _from_native(cls, native_handle: int, document: Document) -> Self:
         instance = cls.__new__(cls)
-        instance._setattr("_native", native_handle)
-        instance._setattr("_document", document)
-        instance._setattr("_state", ProxyState.LIVE)
-        instance._setattr("_data", {})
+        instance._set_native(native_handle)
+        instance._set_document(document)
+        instance._set_state(ProxyState.LIVE)
+        instance._set_data(dict())
         return instance
 
     # ------------------------------------------------------------------
@@ -111,18 +156,59 @@ class ProxyBase(RawAttrMixin):
             )
 
     def _mark_stale(self) -> None:
-        self._setattr("_state", ProxyState.STALE)
+        self._set_state(ProxyState.STALE)
 
     def _attach(self, native_handle: int, document: Document) -> None:
-        self._setattr("_native", native_handle)
-        self._setattr("_document", document)
-        self._setattr("_state", ProxyState.LIVE)
+        self._set_native(native_handle)
+        self._set_document(document)
+        self._set_state(ProxyState.LIVE)
 
     def _get_lib(self) -> Handle:
-        doc = self._getattr("_document")
+        doc = self._get_document()
         if doc is None:
             raise ValueError(f"{type(self).__name__} has no associated document.")
         return object.__getattribute__(doc, "_lib")
+
+    # ------------------------------------------------------------------
+    # Batch write
+    # ------------------------------------------------------------------
+
+    def _apply_changes(self, changes: dict[str, Any]) -> None:
+        """Apply *changes* in one FFI call, or a dict update in construction state."""
+        if not changes:
+            return
+        if not self._is_live:
+            self._getattr("_data").update(changes)
+        else:
+            self._check_valid()
+            pending = {k: int(v) if isinstance(v, bool) else v for k, v in changes.items()}
+            self._get_lib().set_many(self._getattr("_native"), pending)
+
+    @contextlib.contextmanager
+    def edit(self):
+        """Context manager that batches property writes into a single FFI call.
+
+        Prefer the class-specific ``format()`` for straightforward updates.
+        Use ``edit()`` when the batch requires conditional logic:
+
+        .. code-block:: python
+
+            with para.edit() as p:
+                if urgent:
+                    p.space_before = 0.0
+                p.alignment = "left"
+
+        On a construction-state proxy ``edit()`` is a no-op — writes already
+        go directly to the local data dict, so batching has no cost.
+        """
+        if not self._is_live:
+            yield self
+            return
+        self._check_valid()
+        pending: dict[str, Any] = {}
+        yield _EditProxy(self, pending)
+        if pending:
+            self._get_lib().set_many(self._getattr("_native"), pending)
 
     # ------------------------------------------------------------------
     # Attribute routing
@@ -141,21 +227,21 @@ class ProxyBase(RawAttrMixin):
                     return
                 break
         # No data descriptor found
-        state = self._getattr("_state")
+        state = self._get_state()
         if state is ProxyState.LIVE or state is ProxyState.STALE:
             self._check_valid()
             raise AttributeError(f"{type(self).__name__!r} has no settable attribute {name!r}")
-        self._getattr("_data")[name] = value
+        self._get_data()[name] = value
 
     def __getattr__(self, name: str) -> Any:
         # Called only when normal attribute lookup fails.
         # Descriptors are found by normal MRO lookup before __getattr__ is called.
-        state = self._getattr("_state")
+        state = self._get_state()
         if state is ProxyState.LIVE or state is ProxyState.STALE:
             self._check_valid()
             raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}")
         try:
-            return self._getattr("_data")[name]
+            return self._get_data()[name]
         except KeyError:
             raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}") from None
 
@@ -174,10 +260,10 @@ class ProxyBase(RawAttrMixin):
             self._check_valid()
         data = self._copy_data()
         instance: Self = type(self).__new__(type(self))
-        instance._setattr("_native", None)
-        instance._setattr("_document", None)
-        instance._setattr("_state", ProxyState.SNAPSHOT)
-        instance._setattr("_data", data)
+        instance._set_native(None)
+        instance._set_document(None)
+        instance._set_state(ProxyState.SNAPSHOT)
+        instance._set_data(data)
         return instance
 
     def copy(self) -> Self:
@@ -192,23 +278,48 @@ class ProxyBase(RawAttrMixin):
     # ------------------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
+        if not isinstance(other, type(self)):
             return NotImplemented
-        self_n = self._getattr("_native")
+        self_n = self._get_native()
         other_n = object.__getattribute__(other, "_native")
         if self_n is None and other_n is None:
-            return self._getattr("_data") == object.__getattribute__(other, "_data")
+            return self._get_data() == other._get_data()
         return self_n is not None and self_n == other_n
 
     def __hash__(self) -> int:
-        native = self._getattr("_native")
+        native = self._get_native()
         return hash(native) if native is not None else id(self)
 
     def __repr__(self) -> str:
-        state = self._getattr("_state")
+        state = self._get_state()
         if state is ProxyState.STALE:
             return f"{type(self).__name__}(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             return f"{type(self).__name__}(spec)"
         return f"{type(self).__name__}(handle={native!r})"
+
+
+class _EditProxy:
+    """Accumulates property writes inside an ``edit()`` block; flushed as one ``set_many`` call."""
+
+    def __init__(self, proxy: ProxyBase, pending: dict[str, Any]) -> None:
+        object.__setattr__(self, "_proxy", proxy)
+        object.__setattr__(self, "_pending", pending)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+            return
+        pending: dict[str, Any] = object.__getattribute__(self, "_pending")
+        match value:
+            case bool():
+                pending[name] = int(value)
+            case str() | float() | int():
+                pending[name] = value
+            case _:
+                raise TypeError(f"Cannot batch-write {name!r}={value!r}")
+
+    def __getattr__(self, name: str) -> Any:
+        proxy: ProxyBase = object.__getattribute__(self, "_proxy")
+        return getattr(proxy, name)

@@ -10,12 +10,10 @@ Each descriptor handles both live (FFI) and spec (_data) mode transparently.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, overload
 
 if TYPE_CHECKING:
     from fastdocx._proxy.base import ProxyBase
-
-L = TypeVar("L", bound=str)
 
 
 # ---------------------------------------------------------------------------
@@ -131,11 +129,48 @@ class FloatProperty:
 
 
 # ---------------------------------------------------------------------------
+# IntProperty
+# ---------------------------------------------------------------------------
+
+
+class IntProperty:
+    """Integer property. Default 0. Treats negative native return as 'not set'."""
+
+    def __init__(self, name: str, *, default: int = 0) -> None:
+        self._name = name
+        self._default = default
+
+    @overload
+    def __get__(self, obj: None, objtype: type) -> IntProperty: ...
+    @overload
+    def __get__(self, obj: ProxyBase, objtype: type) -> int: ...
+
+    def __get__(self, obj: ProxyBase | None, objtype: type | None = None) -> int | IntProperty:
+        if obj is None:
+            return self
+        if object.__getattribute__(obj, "_native") is not None:
+            obj._check_valid()
+            rc = obj._get_lib().get_int(object.__getattribute__(obj, "_native"), self._name)
+            return rc if rc >= 0 else self._default
+        data: dict[str, Any] = object.__getattribute__(obj, "_data")
+        return int(data.get(self._name, self._default))
+
+    def __set__(self, obj: ProxyBase, value: int) -> None:
+        v = int(value)
+        native = object.__getattribute__(obj, "_native")
+        if native is not None:
+            obj._check_valid()
+            obj._get_lib().set_int(native, self._name, v)
+        else:
+            object.__getattribute__(obj, "_data")[self._name] = v
+
+
+# ---------------------------------------------------------------------------
 # ChoiceProperty
 # ---------------------------------------------------------------------------
 
 
-class ChoiceProperty(Generic[L]):
+class ChoiceProperty[L: str]:
     """String restricted to a tuple of Literal values.
 
     Set allow_bool=True so True maps to choices[0] and False maps to None.
@@ -218,6 +253,7 @@ class ColorProperty:
 
     def __set__(self, obj: ProxyBase, value: Any) -> None:
         from fastdocx.units import Color
+
         normalized = Color._normalize(value)
         native = object.__getattribute__(obj, "_native")
         if native is not None:
