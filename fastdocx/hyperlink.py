@@ -55,6 +55,7 @@ class Hyperlink(ProxyBase):
         self._check_valid()
         lib = self._get_lib()
         native = self._getattr("_native")
+        assert native is not None
         return {
             "text": lib.get_str(native, "text"),
             "url": lib.get_str(native, "url"),

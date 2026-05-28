@@ -21,7 +21,8 @@ from __future__ import annotations
 import contextlib
 import enum
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Self
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from fastdocx._attrs import RawAttrMixin
 from fastdocx.errors import DocumentClosedError, StaleProxyError
@@ -64,7 +65,7 @@ class ProxyBase(RawAttrMixin):
 
     def _get_child_type_name(self) -> str:
         """Return the child type name for this proxy, used in error messages."""
-        return self._getattr("_child_type_name")
+        return cast(str, self._getattr("_child_type_name"))
 
     def _set_child_type_name(self, name: str) -> None:
         """Set the child type name for this proxy, used in error messages."""
@@ -167,7 +168,7 @@ class ProxyBase(RawAttrMixin):
         doc = self._get_document()
         if doc is None:
             raise ValueError(f"{type(self).__name__} has no associated document.")
-        return object.__getattribute__(doc, "_lib")
+        return cast("Handle", object.__getattribute__(doc, "_lib"))
 
     # ------------------------------------------------------------------
     # Batch write
@@ -181,11 +182,13 @@ class ProxyBase(RawAttrMixin):
             self._getattr("_data").update(changes)
         else:
             self._check_valid()
+            native = self._getattr("_native")
+            assert native is not None
             pending = {k: int(v) if isinstance(v, bool) else v for k, v in changes.items()}
-            self._get_lib().set_many(self._getattr("_native"), pending)
+            self._get_lib().set_many(native, pending)
 
     @contextlib.contextmanager
-    def edit(self):
+    def edit(self) -> Iterator[Self]:
         """Context manager that batches property writes into a single FFI call.
 
         Prefer the class-specific ``format()`` for straightforward updates.
@@ -206,9 +209,11 @@ class ProxyBase(RawAttrMixin):
             return
         self._check_valid()
         pending: dict[str, Any] = {}
-        yield _EditProxy(self, pending)
+        yield cast(Self, _EditProxy(self, pending))
         if pending:
-            self._get_lib().set_many(self._getattr("_native"), pending)
+            native = self._getattr("_native")
+            assert native is not None
+            self._get_lib().set_many(native, pending)
 
     # ------------------------------------------------------------------
     # Attribute routing

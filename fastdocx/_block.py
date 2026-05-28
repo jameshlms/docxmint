@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from fastdocx.table import Table
 
 
-type BlockCtx = tuple[int | None, Handle, Document | None]
+type BlockCtx = tuple[int, Handle, Document]
 
 
 class BlockContainerMixin:

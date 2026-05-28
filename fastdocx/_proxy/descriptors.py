@@ -10,7 +10,7 @@ Each descriptor handles both live (FFI) and spec (_data) mode transparently.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 from fastdocx.units import normalize_color_input
 
@@ -206,7 +206,7 @@ class ChoiceProperty[L: str]:
             val = obj._get_lib().get_str(object.__getattribute__(obj, "_native"), self._name)
             return val or self._default  # type: ignore[return-value]
         data: dict[str, Any] = object.__getattribute__(obj, "_data")
-        return data.get(self._name, self._default)  # type: ignore[return-value]
+        return data.get(self._name, self._default)
 
     def __set__(self, obj: ProxyBase, value: bool | str | None) -> None:
         if self._allow_bool:
@@ -251,7 +251,7 @@ class ColorProperty:
             if not val:
                 return None
             return f"#{val}" if val != "auto" else "auto"
-        return object.__getattribute__(obj, "_data").get(self._name, None)
+        return cast("str | None", object.__getattribute__(obj, "_data").get(self._name, None))
 
     def __set__(self, obj: ProxyBase, value: Any) -> None:
 
@@ -276,7 +276,7 @@ class ObjectProperty:
     On write: validates type before setting.
     """
 
-    def __init__(self, name: str, proxy_type: type) -> None:
+    def __init__(self, name: str, proxy_type: type[ProxyBase]) -> None:
         self._name = name
         self._proxy_type = proxy_type
 

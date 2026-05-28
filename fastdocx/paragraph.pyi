@@ -85,7 +85,7 @@ class HorizontalRule(Paragraph):
     def __init__(
         self,
         *,
-        line_style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
+        line_style: LineStyleArg = "single",
         line_width: float = 1.0,
         line_color: str = "auto",
     ) -> None: ...

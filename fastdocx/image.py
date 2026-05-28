@@ -136,6 +136,7 @@ class Image(ProxyBase):
         self._check_valid()
         lib = self._get_lib()
         native = self._getattr("_native")
+        assert native is not None
         return {
             "_image_data": lib.get_image_data(native),
             "_content_type": lib.get_str(native, "content_type") or "image/png",

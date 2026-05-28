@@ -114,7 +114,7 @@ def normalize_color_input(value: Color | str | None) -> str | None:
         return AUTO
     if isinstance(value, Color):
         return str(value)
-    if isinstance(value, str):  # type: ignore[reportUnnecessaryIsInstance]
+    if isinstance(value, str):
         s = value.lstrip("#")
         if len(s) == 6:
             try:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastdocx._collection import DocumentView as DocumentView
 from fastdocx._proxy.base import ProxyBase as _ProxyBase
@@ -47,5 +47,6 @@ class Section(_ProxyBase):
         height: float = ...,
         alt_text: str = ...,
     ) -> Image: ...
+    def _copy_data(self) -> dict[str, Any]: ...
     def copy(self) -> Section: ...
     def __repr__(self) -> str: ...
