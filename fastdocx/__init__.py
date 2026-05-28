@@ -1,5 +1,19 @@
-"""FastDOCX — Pythonic DOCX manipulation via a C# Native AOT shared library."""
+"""FastDocx — Pythonic ``.docx`` manipulation backed by a C# Native AOT library.
 
+All document data lives in the C# layer; Python holds lightweight proxy objects
+(handles). The central types are:
+
+- :class:`Document` — open, create, and save ``.docx`` files
+- :class:`Paragraph` / :class:`Run` — block text and character-level spans
+- :class:`Table` / :class:`Row` / :class:`Cell` — tabular content
+- :class:`Section` — page-layout containers
+- :class:`Style` / :class:`StyleCollection` — style definitions
+
+Use :func:`snapshot` to capture a document-independent copy of any proxy element
+so it can be used after the document is closed.
+"""
+
+from fastdocx._collection import DocumentView
 from fastdocx._proxy.base import ProxyBase as _ProxyBase
 from fastdocx.document import Document
 from fastdocx.errors import (
@@ -23,6 +37,8 @@ from fastdocx.formats import (
     SpacingFormat,
     TableBorders,
 )
+from fastdocx.hyperlink import Hyperlink
+from fastdocx.image import Image
 from fastdocx.paragraph import HorizontalRule, Paragraph
 from fastdocx.run import Run
 from fastdocx.section import Section
@@ -31,13 +47,29 @@ from fastdocx.table import Cell, Row, Table
 
 
 def snapshot[T: _ProxyBase](elem: T) -> T:
-    """Return a document-independent snapshot of *elem*.
+    """Return a document-independent copy of *elem*.
 
-    Calls ``elem.__copydocelem__()`` and returns the result — a mutable copy
-    with no native handle, safe to keep after the document is closed.
+    The returned object is in *construction state* — it has no native handle and
+    can be safely used after the source document is closed. It can also be
+    appended to a different document.
 
-        para = doc.paragraphs[0]
-        snap = snapshot(para)   # safe to use after ``doc.close()``
+    Args:
+        elem: Any live or construction-state proxy
+            (:class:`Paragraph`, :class:`Run`, :class:`Table`, etc.).
+
+    Returns:
+        A new construction-state object of the same type with all properties
+        copied from *elem*.
+
+    Example:
+        .. code-block:: python
+
+            with Document.open("report.docx") as doc:
+                para = doc.paragraphs[0]
+                snap = snapshot(para)   # copy data before close
+
+            # doc is closed — snap is still valid
+            print(snap.text)
     """
     return elem.__copydocelem__()
 
@@ -46,9 +78,12 @@ __all__ = [
     # Core
     "snapshot",
     "Document",
+    "DocumentView",
     "Paragraph",
     "HorizontalRule",
     "Run",
+    "Image",
+    "Hyperlink",
     "Table",
     "Row",
     "Cell",

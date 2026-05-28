@@ -1,5 +1,5 @@
+from fastdocx._collection import DocumentView as DocumentView
 from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx._proxy.base import ProxyState as ProxyState
 from fastdocx.document import Document as Document
 from fastdocx.errors import (
     DocumentClosedError as DocumentClosedError,
@@ -52,6 +52,9 @@ from fastdocx.formats import (
 from fastdocx.formats import (
     TableBorders as TableBorders,
 )
+from fastdocx.hyperlink import Hyperlink as Hyperlink
+from fastdocx.image import Image as Image
+from fastdocx.paragraph import HorizontalRule as HorizontalRule
 from fastdocx.paragraph import Paragraph as Paragraph
 from fastdocx.run import Run as Run
 from fastdocx.section import Section as Section
