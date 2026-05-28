@@ -10,7 +10,6 @@ import pytest
 
 from tests.unit.mock_handle import MockHandle
 
-
 # ---------------------------------------------------------------------------
 # Fixture helpers
 # ---------------------------------------------------------------------------
@@ -53,7 +52,7 @@ class TestDocumentConstruction:
         with patch("fastdocx._native.handle.get_handle", return_value=mock):
             from fastdocx.document import Document
             with Document() as doc:
-                handle = doc._handle
+                pass
         assert doc.is_open is False
 
     def test_require_open_raises_after_close(self):
@@ -140,7 +139,6 @@ class TestDocumentAsCollection:
         assert len(doc.tables) == 1
 
     def test_type_error_on_wrong_type_in_filtered_view(self):
-        from fastdocx.paragraph import Paragraph
         from fastdocx.table import Table
         doc, _ = _make_doc()
         with pytest.raises(TypeError, match="DocumentView"):
@@ -809,7 +807,7 @@ class TestProxyLifecycle:
 
     def test_closed_doc_raises_document_closed_not_stale(self):
         """Accessing a LIVE proxy after its doc closes raises DocumentClosedError, not StaleProxyError."""
-        from fastdocx.errors import DocumentClosedError, StaleProxyError
+        from fastdocx.errors import DocumentClosedError
         from fastdocx.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("bye")
@@ -941,9 +939,8 @@ class TestNativeRuntimeError:
         from fastdocx.errors import NativeRuntimeError
         mock = MockHandle()
         mock.inject_error("create_document", NativeRuntimeError("create_document returned null handle"))
-        with patch("fastdocx._native.handle.get_handle", return_value=mock):
-            with pytest.raises(NativeRuntimeError, match="create_document"):
-                Document()
+        with patch("fastdocx._native.handle.get_handle", return_value=mock), pytest.raises(NativeRuntimeError, match="create_document"):
+            Document()
 
     def test_save_failure_propagates(self):
         from fastdocx.errors import NativeRuntimeError
@@ -1001,7 +998,6 @@ class TestNativeRuntimeError:
 
     def test_error_cleared_after_clear_error(self):
         from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
         doc, mock = _make_doc()
         mock.inject_error("save_document", NativeRuntimeError("save_document failed"))
         with pytest.raises(NativeRuntimeError):

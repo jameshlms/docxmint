@@ -6,8 +6,6 @@ import os
 import pathlib
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tests.unit.mock_handle import MockHandle
 
 

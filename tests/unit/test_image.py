@@ -1,14 +1,11 @@
 """Unit tests for Image — run-level inline image proxy."""
 from __future__ import annotations
 
-import io
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from tests.unit.mock_handle import MockHandle
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -338,7 +335,7 @@ class TestDocAddImage:
     def test_image_is_inside_new_paragraph(self):
         from fastdocx.image import Image
         doc, mock = _make_doc()
-        img = doc.add_image(data=_PNG_BYTES, content_type="image/png")
+        doc.add_image(data=_PNG_BYTES, content_type="image/png")
         para = doc.paragraphs[0]
         assert len(para.images) == 1
         assert isinstance(para.images[0], Image)

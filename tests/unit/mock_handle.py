@@ -261,11 +261,11 @@ class MockHandle:
         self._handles[h]["cols"] = cols
         self._children.setdefault(doc_handle, []).append(h)
         self._parent[h] = doc_handle
-        for r in range(rows):
+        for _r in range(rows):
             row_h = self._alloc("row")
             self._children[h].append(row_h)
             self._parent[row_h] = h
-            for c in range(cols):
+            for _c in range(cols):
                 cell_h = self._alloc("cell")
                 self._children[row_h].append(cell_h)
                 self._parent[cell_h] = row_h

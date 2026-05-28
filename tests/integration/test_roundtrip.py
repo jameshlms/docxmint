@@ -40,7 +40,7 @@ native_only = pytest.mark.skipif(not _native_available(), reason=_SKIP_REASON)
 # ---------------------------------------------------------------------------
 
 
-def _open_docx(path: str) -> docx.Document:  # type: ignore[name-defined]
+def _open_docx(path: str) -> docx.Document:  # type: ignore[name-defined]  # noqa: F821
     import docx  # type: ignore[import-untyped]
 
     return docx.Document(path)

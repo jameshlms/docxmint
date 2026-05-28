@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
+from fastdocx.document import Document
 from fastdocx.paragraph import Paragraph
-
 from tests.unit.mock_handle import MockHandle
 
 
