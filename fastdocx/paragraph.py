@@ -2,18 +2,30 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Literal, Self
+from collections.abc import Iterable, Iterator
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Literal, Self, override
 
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import BoolProperty, ChoiceProperty, ColorProperty, FloatProperty, StringProperty
-from fastdocx.collection import DocumentView
+from fastdocx._collection import DocumentView
+from fastdocx._proxy.base import UNSET as _UNSET
+from fastdocx._proxy.base import ProxyBase as _ProxyBase
+from fastdocx._proxy.base import ProxyState
+from fastdocx._proxy.descriptors import (
+    BoolProperty,
+    ChoiceProperty,
+    ColorProperty,
+    FloatProperty,
+    IntProperty,
+    StringProperty,
+)
 
 if TYPE_CHECKING:
+    from fastdocx.hyperlink import Hyperlink
+    from fastdocx.image import Image
     from fastdocx.run import Run
 
 
-class Paragraph(ProxyBase):
+class Paragraph(_ProxyBase):
     """A paragraph element — either a live proxy or a construction object.
 
     **Construction object** (before appending to a document)::
@@ -31,7 +43,6 @@ class Paragraph(ProxyBase):
     _child_type_name = "paragraph"
 
     # Descriptors — one line per property, routing handled automatically
-    text = StringProperty("text", default="")
     style = StringProperty("style", default="Normal")
     alignment: ChoiceProperty[Literal["left", "right", "center", "justify"]] = ChoiceProperty(
         "alignment", ("left", "right", "center", "justify")
@@ -39,21 +50,73 @@ class Paragraph(ProxyBase):
     keep_together = BoolProperty("keep_together")
     keep_with_next = BoolProperty("keep_with_next")
     page_break_before = BoolProperty("page_break_before")
+    space_before = FloatProperty("space_before", default=0.0)  # points
+    space_after = FloatProperty("space_after", default=0.0)  # points
+    line_spacing = FloatProperty("line_spacing", default=1.0)  # multiplier (1.0 = single)
+    indent_left = FloatProperty("indent_left", default=0.0)  # inches
+    indent_right = FloatProperty("indent_right", default=0.0)  # inches
+    indent_hanging = FloatProperty(
+        "indent_hanging", default=0.0
+    )  # inches (first-line negative indent)
+    list_style: ChoiceProperty[Literal["bullet", "number"]] = ChoiceProperty(
+        "list_style", ("bullet", "number")
+    )
+    list_level = IntProperty("list_level", default=0)  # 0–8
+
+    @property
+    def text(self) -> str:
+        """The full text content of the paragraph, as the concatenation of all run texts.
+
+        In construction state, derived from the paragraph's run list. When live,
+        reads from the native layer (which synthesizes the same value from runs).
+        Setting ``text`` replaces the entire run list with a single unstyled run.
+        """
+        if self._is_live:
+            self._check_valid()
+            return self._get_lib().get_str(self._getattr("_native"), "text") or ""
+        self._check_valid()
+        return "".join(r.text for r in self._getattr("_data").get("runs", []))
+
+    @text.setter
+    def text(self, value: str) -> None:
+        if self._is_live:
+            self._check_valid()
+            self._get_lib().set_str(self._getattr("_native"), "text", value)
+            return
+        from fastdocx.run import Run
+
+        self._getattr("_data")["runs"] = [Run(value)] if value else []
 
     def __init__(
         self,
-        text: str = "",
+        text: str | Run | list[str | Run] | None = None,
         *,
         style: str = "Normal",
         alignment: Literal["left", "right", "center", "justify"] | None = None,
         keep_together: bool = False,
         keep_with_next: bool = False,
         page_break_before: bool = False,
+        space_before: float = 0.0,
+        space_after: float = 0.0,
+        line_spacing: float = 1.0,
+        indent_left: float = 0.0,
+        indent_right: float = 0.0,
+        indent_hanging: float = 0.0,
+        list_style: Literal["bullet", "number"] | None = None,
+        list_level: int = 0,
     ) -> None:
+        from fastdocx.run import Run
+
         super().__init__()
         data: dict[str, Any] = {}
-        if text:
-            data["text"] = text
+        if isinstance(text, str):
+            if text:
+                data["runs"] = [Run(text)]
+        elif isinstance(text, Run):
+            data["runs"] = [text]
+        else:
+            if text:
+                data["runs"] = [Run(t) if isinstance(t, str) else t for t in text]
         if style and style != "Normal":
             data["style"] = style
         if alignment is not None:
@@ -64,17 +127,23 @@ class Paragraph(ProxyBase):
             data["keep_with_next"] = True
         if page_break_before:
             data["page_break_before"] = True
+        if space_before:
+            data["space_before"] = float(space_before)
+        if space_after:
+            data["space_after"] = float(space_after)
+        if line_spacing != 1.0:
+            data["line_spacing"] = float(line_spacing)
+        if indent_left:
+            data["indent_left"] = float(indent_left)
+        if indent_right:
+            data["indent_right"] = float(indent_right)
+        if indent_hanging:
+            data["indent_hanging"] = float(indent_hanging)
+        if list_style is not None:
+            data["list_style"] = list_style
+        if list_level:
+            data["list_level"] = int(list_level)
         self._setattr("_data", data)
-
-    @classmethod
-    def horizontal_line(
-        cls,
-        style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
-        width: float = 6.0,
-        color: str = "auto",
-    ) -> HorizontalRule:
-        """Create a horizontal rule paragraph. Prefer ``HorizontalRule()`` directly."""
-        return HorizontalRule(line_style=style, line_width=width, line_color=color)
 
     # ------------------------------------------------------------------
     # Runs collection
@@ -82,13 +151,12 @@ class Paragraph(ProxyBase):
 
     @property
     def runs(self) -> DocumentView[Run]:
-        if not self._is_live:
-            from fastdocx.run import Run
-
-            return DocumentView.empty(Run, "runs")
-        self._check_valid()
         from fastdocx.run import Run
 
+        if not self._is_live:
+            runs_list: list[Any] = self._getattr("_data").setdefault("runs", [])
+            return _ConstructionRunsView(runs_list)  # type: ignore[return-value]
+        self._check_valid()
         return DocumentView(
             self._getattr("_native"),
             self._getattr("_document"),
@@ -97,17 +165,41 @@ class Paragraph(ProxyBase):
             "runs",
         )
 
+    @property
+    def images(self) -> DocumentView[Image]:
+        """Live filtered view of inline images in this paragraph."""
+        from fastdocx.image import Image
+
+        if not self._is_live:
+            return DocumentView.empty(Image, "images")
+        self._check_valid()
+        return DocumentView(
+            self._getattr("_native"),
+            self._getattr("_document"),
+            self._get_lib(),
+            Image,
+            "images",
+        )
+
     # ------------------------------------------------------------------
     # Builder methods (return Self for chaining)
     # ------------------------------------------------------------------
 
     def add_run(self, text: str = "") -> Run:
-        """Append a new run and return the live proxy."""
-        from fastdocx.collection import DocumentView
+        """Append a new run and return it.
+
+        Works in both construction state (returns a construction-state :class:`~fastdocx.run.Run`
+        added to the paragraph's run list) and live state (materialises the run in the
+        native layer immediately).
+        """
         from fastdocx.run import Run
 
         if not self._is_live:
-            raise ValueError("Cannot add_run to a paragraph that is not yet in a document.")
+            run = Run(text)
+            self._getattr("_data").setdefault("runs", []).append(run)
+            return run
+        from fastdocx._collection import DocumentView
+
         view = DocumentView(
             self._getattr("_native"),
             self._getattr("_document"),
@@ -117,28 +209,177 @@ class Paragraph(ProxyBase):
         )
         return view._append_one(Run(text))
 
+    def add_image(
+        self,
+        src: str | None = None,
+        *,
+        data: bytes | None = None,
+        content_type: str | None = None,
+        width: float = 0.0,
+        height: float = 0.0,
+        alt_text: str = "",
+    ) -> Image:
+        """Append an inline image and return the live proxy.
+
+        Args:
+            src: Path to an image file.
+            data: Raw image bytes (alternative to *src*).
+            content_type: MIME type; inferred from *src* extension if omitted.
+            width: Display width in inches.
+            height: Display height in inches.
+            alt_text: Accessibility description.
+        """
+        from fastdocx.image import Image
+
+        if not self._is_live:
+            raise ValueError("Cannot add_image to a paragraph that is not yet in a document.")
+        return self.images._append_one(
+            Image(
+                src,
+                data=data,
+                content_type=content_type,
+                width=width,
+                height=height,
+                alt_text=alt_text,
+            )
+        )
+
+    @property
+    def hyperlinks(self) -> DocumentView[Hyperlink]:
+        """Live filtered view of inline hyperlinks in this paragraph."""
+        from fastdocx.hyperlink import Hyperlink
+
+        if not self._is_live:
+            return DocumentView.empty(Hyperlink, "hyperlinks")
+        self._check_valid()
+        return DocumentView(
+            self._getattr("_native"),
+            self._getattr("_document"),
+            self._get_lib(),
+            Hyperlink,
+            "hyperlinks",
+        )
+
+    def add_hyperlink(self, text: str, url: str) -> Hyperlink:
+        """Append an inline hyperlink and return the live proxy.
+
+        Args:
+            text: Display text shown to the reader.
+            url:  Target URL.
+        """
+        from fastdocx.hyperlink import Hyperlink
+
+        if not self._is_live:
+            raise ValueError("Cannot add_hyperlink to a paragraph that is not yet in a document.")
+        return self.hyperlinks._append_one(Hyperlink(text, url))
+
+    def add_break(self) -> Self:
+        """Append a soft line break (Shift+Enter) and return *self* for chaining.
+
+        Inserts ``<w:r><w:br w:type="textWrapping"/></w:r>`` — a line break
+        within the paragraph, not a new paragraph.
+        """
+        if not self._is_live:
+            raise ValueError("Cannot add_break to a paragraph that is not yet in a document.")
+        self._get_lib().append_child(self._getattr("_native"), "break")
+        return self
+
     def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self:
+        """Set paragraph alignment and return *self* for chaining.
+
+        Args:
+            alignment: One of ``"left"``, ``"right"``, ``"center"``, ``"justify"``.
+        """
         self.alignment = alignment
         return self
 
     def set_style(self, style: str) -> Self:
+        """Set the paragraph style name and return *self* for chaining.
+
+        Args:
+            style: Style name as it appears in the document's style table,
+                e.g. ``"Heading1"``, ``"Normal"``, ``"ListBullet"``.
+        """
         self.style = style
+        return self
+
+    # ------------------------------------------------------------------
+    # Batch write
+    # ------------------------------------------------------------------
+
+    def format(
+        self,
+        *,
+        style: str = _UNSET,
+        alignment: Literal["left", "right", "center", "justify"] = _UNSET,
+        keep_together: bool = _UNSET,
+        keep_with_next: bool = _UNSET,
+        page_break_before: bool = _UNSET,
+        space_before: float = _UNSET,
+        space_after: float = _UNSET,
+        line_spacing: float = _UNSET,
+        indent_left: float = _UNSET,
+        indent_right: float = _UNSET,
+        indent_hanging: float = _UNSET,
+        list_style: Literal["bullet", "number"] = _UNSET,
+        list_level: int = _UNSET,
+    ) -> Self:
+        """Set multiple paragraph properties in a single FFI call and return *self*.
+
+        Only the keyword arguments you pass are changed; omitted properties are
+        left untouched.
+
+        Example:
+            .. code-block:: python
+
+                para.format(space_before=6.0, space_after=6.0, line_spacing=1.15)
+        """
+        changes: dict[str, Any] = {}
+        for _name, _val in (
+            ("style", style),
+            ("alignment", alignment),
+            ("keep_together", keep_together),
+            ("keep_with_next", keep_with_next),
+            ("page_break_before", page_break_before),
+            ("space_before", space_before),
+            ("space_after", space_after),
+            ("line_spacing", line_spacing),
+            ("indent_left", indent_left),
+            ("indent_right", indent_right),
+            ("indent_hanging", indent_hanging),
+            ("list_style", list_style),
+            ("list_level", list_level),
+        ):
+            if _val is not _UNSET:
+                changes[_name] = _val
+        self._apply_changes(changes)
         return self
 
     # ------------------------------------------------------------------
     # Materialisation
     # ------------------------------------------------------------------
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            data = dict(self._getattr("_data"))
+            if "runs" in data:
+                data["runs"] = [r.copy() for r in data["runs"]]
+            return data
         return {
-            "text": self.text,
             "style": self.style,
             "alignment": self.alignment,
             "keep_together": self.keep_together,
             "keep_with_next": self.keep_with_next,
             "page_break_before": self.page_break_before,
+            "space_before": self.space_before,
+            "space_after": self.space_after,
+            "line_spacing": self.line_spacing,
+            "indent_left": self.indent_left,
+            "indent_right": self.indent_right,
+            "indent_hanging": self.indent_hanging,
+            "list_style": self.list_style,
+            "list_level": self.list_level,
             "runs": [r.copy() for r in self.runs],
         }
 
@@ -146,14 +387,13 @@ class Paragraph(ProxyBase):
     # Dunders
     # ------------------------------------------------------------------
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "Paragraph(<stale>)"
         native = self._getattr("_native")
         if native is None:
-            data = self._getattr("_data")
-            text = data.get("text", "")
-            return f"Paragraph({text!r})"
+            return f"Paragraph({self.text!r})"
         try:
             return f"Paragraph(text={self.text!r}, handle={native!r})"
         except Exception:
@@ -181,6 +421,88 @@ class Paragraph(ProxyBase):
         return run in self.runs
 
 
+class _ConstructionRunsView:
+    """Mutable view over a construction-state paragraph's run list.
+
+    Backed directly by ``_data["runs"]``, so mutations (append, remove) are
+    reflected immediately. Mirrors the ``DocumentView[Run]`` interface.
+    """
+
+    _collection_name = "runs"
+
+    def __init__(self, runs: list[Any]) -> None:
+        self._runs = runs
+
+    def _validate_element(self, element: Any) -> None:
+        from fastdocx.run import Run
+
+        if not isinstance(element, Run):
+            raise TypeError(f"runs only accepts Run elements, got {type(element).__name__}")
+
+    def append(self, element: Any) -> None:
+        self._validate_element(element)
+        if object.__getattribute__(element, "_native") is not None:
+            raise ValueError("Cannot add a live Run to a construction-state paragraph.")
+        self._runs.append(element)
+
+    def extend(self, elements: Iterable[Any]) -> None:
+        for e in elements:
+            self.append(e)
+
+    def remove(self, element: Any) -> None:
+        self._validate_element(element)
+        try:
+            self._runs.remove(element)
+        except ValueError:
+            raise ValueError("Run is not in this paragraph.") from None
+
+    @property
+    def first(self) -> Any | None:
+        return self._runs[0] if self._runs else None
+
+    @property
+    def last(self) -> Any | None:
+        return self._runs[-1] if self._runs else None
+
+    def __len__(self) -> int:
+        return len(self._runs)
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._runs)
+
+    def __reversed__(self) -> Iterator[Any]:
+        return reversed(self._runs)
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return self._runs[index]
+
+    def __contains__(self, element: object) -> bool:
+        return element in self._runs
+
+    def __bool__(self) -> bool:
+        return bool(self._runs)
+
+    def __iadd__(self, elements: Iterable[Any]) -> _ConstructionRunsView:
+        self.extend(elements)
+        return self
+
+    def __repr__(self) -> str:
+        return f"DocumentView[Run](len={len(self._runs)}, construction)"
+
+
+class LineStyle(StrEnum):
+    """Border style for a horizontal rule."""
+
+    SINGLE = "single"
+    DOUBLE = "double"
+    DOTTED = "dotted"
+    DASHED = "dashed"
+    WAVE = "wave"
+
+
+LineStyleArg = LineStyle | Literal["single", "double", "dotted", "dashed", "wave"]
+
+
 class HorizontalRule(Paragraph):
     """A paragraph that renders as a horizontal rule.
 
@@ -191,25 +513,26 @@ class HorizontalRule(Paragraph):
 
     **Live proxy** (from ``doc.add_horizontal_rule()``)::
 
-        rule = doc.add_horizontal_rule(line_style="dashed", line_width=3.0)
+        rule = doc.add_horizontal_rule(line_style="dashed", line_width=1.0)
         rule.line_color = "#999999"
     """
 
-    line_style: ChoiceProperty[
-        Literal["single", "double", "dotted", "dashed", "wave"]
-    ] = ChoiceProperty(
+    line_style: ChoiceProperty[LineStyle] = ChoiceProperty(
         "hr_style",
         ("single", "double", "dotted", "dashed", "wave"),
         default="single",
     )
-    line_width = FloatProperty("hr_width", default=6.0)
+    """Border style of the rule. One of ``"single"``, ``"double"``, ``"dotted"``, ``"dashed"``, ``"wave"``."""
+    line_width = FloatProperty("hr_width", default=1.0)
+    """Rule thickness in points. Default ``1.0``."""
     line_color = ColorProperty("hr_color")
+    """Rule colour as ``"#RRGGBB"`` or ``"auto"``. Default ``"auto"``."""
 
     def __init__(
         self,
         *,
-        line_style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
-        line_width: float = 6.0,
+        line_style: LineStyleArg = "single",
+        line_width: float = 1.0,
         line_color: str = "auto",
     ) -> None:
         super().__init__()
@@ -219,6 +542,7 @@ class HorizontalRule(Paragraph):
         data["hr_width"] = line_width
         data["hr_color"] = line_color
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
             return dict(self._getattr("_data"))
@@ -229,11 +553,16 @@ class HorizontalRule(Paragraph):
         data["hr_color"] = self.line_color
         return data
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "HorizontalRule(<stale>)"
         native = self._getattr("_native")
-        style = self._getattr("_data").get("hr_style", "single") if native is None else (self.line_style or "single")
+        style: LineStyle | Literal["single"] = (
+            self._getattr("_data").get("hr_style", "single")
+            if native is None
+            else (self.line_style or "single")
+        )
         if native is None:
             return f"HorizontalRule(line_style={style!r})"
         try:

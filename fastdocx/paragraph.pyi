@@ -1,46 +1,73 @@
 from collections.abc import Iterator
+from enum import StrEnum
+from pathlib import Path
 from typing import Any, Literal, Self
 
 from _typeshed import Incomplete
 
-from fastdocx._proxy.base import ProxyBase as ProxyBase
-from fastdocx._proxy.base import ProxyState as ProxyState
-from fastdocx._proxy.descriptors import BoolProperty as BoolProperty
-from fastdocx._proxy.descriptors import ChoiceProperty as ChoiceProperty
-from fastdocx._proxy.descriptors import ColorProperty as ColorProperty
-from fastdocx._proxy.descriptors import FloatProperty as FloatProperty
-from fastdocx._proxy.descriptors import StringProperty as StringProperty
-from fastdocx.collection import DocumentView as DocumentView
+from fastdocx._collection import DocumentView as DocumentView
+from fastdocx._proxy.base import ProxyBase as _ProxyBase
+from fastdocx._proxy.descriptors import ChoiceProperty as _ChoiceProperty
+from fastdocx.hyperlink import Hyperlink as Hyperlink
+from fastdocx.image import Image as Image
 from fastdocx.run import Run as Run
 
-class Paragraph(ProxyBase):
+class Paragraph(_ProxyBase):
     _child_type_name: str
-    text: Incomplete
+    @property
+    def text(self) -> str: ...
+    @text.setter
+    def text(self, value: str) -> None: ...
     style: Incomplete
-    alignment: ChoiceProperty[Literal["left", "right", "center", "justify"]]
+    alignment: _ChoiceProperty[Literal["left", "right", "center", "justify"]]
     keep_together: Incomplete
     keep_with_next: Incomplete
     page_break_before: Incomplete
+    space_before: float
+    space_after: float
+    line_spacing: float
+    indent_left: float
+    indent_right: float
+    indent_hanging: float
+    list_style: _ChoiceProperty[Literal["bullet", "number"]]
+    list_level: int
     def __init__(
         self,
-        text: str = "",
+        text: str | Run | list[str | Run] | None = None,
         *,
         style: str = "Normal",
         alignment: Literal["left", "right", "center", "justify"] | None = None,
         keep_together: bool = False,
         keep_with_next: bool = False,
         page_break_before: bool = False,
+        space_before: float = ...,
+        space_after: float = ...,
+        line_spacing: float = ...,
+        indent_left: float = ...,
+        indent_right: float = ...,
+        indent_hanging: float = ...,
+        list_style: Literal["bullet", "number"] | None = None,
+        list_level: int = 0,
     ) -> None: ...
-    @classmethod
-    def horizontal_line(
-        cls,
-        style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
-        width: float = 6.0,
-        color: str = "auto",
-    ) -> HorizontalRule: ...
     @property
     def runs(self) -> DocumentView[Run]: ...
+    @property
+    def images(self) -> DocumentView[Image]: ...
+    @property
+    def hyperlinks(self) -> DocumentView[Hyperlink]: ...
     def add_run(self, text: str = "") -> Run: ...
+    def add_image(
+        self,
+        src: str | Path | None = None,
+        *,
+        data: bytes | None = None,
+        content_type: str | None = None,
+        width: float = 0.0,
+        height: float = 0.0,
+        alt_text: str = "",
+    ) -> Image: ...
+    def add_hyperlink(self, text: str, url: str) -> Hyperlink: ...
+    def add_break(self) -> Self: ...
     def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self: ...
     def set_style(self, style: str) -> Self: ...
     def _copy_data(self) -> dict[str, Any]: ...
@@ -52,15 +79,26 @@ class Paragraph(ProxyBase):
     def __contains__(self, run: object) -> bool: ...
 
 class HorizontalRule(Paragraph):
-    line_style: ChoiceProperty[Literal["single", "double", "dotted", "dashed", "wave"]]
+    line_style: _ChoiceProperty[Literal["single", "double", "dotted", "dashed", "wave"]]
     line_width: Incomplete
     line_color: Incomplete
     def __init__(
         self,
         *,
         line_style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
-        line_width: float = 6.0,
+        line_width: float = 1.0,
         line_color: str = "auto",
     ) -> None: ...
     def _copy_data(self) -> dict[str, Any]: ...
     def __repr__(self) -> str: ...
+
+class LineStyle(StrEnum):
+    """Border style for a horizontal rule."""
+
+    SINGLE = "single"
+    DOUBLE = "double"
+    DOTTED = "dotted"
+    DASHED = "dashed"
+    WAVE = "wave"
+
+LineStyleArg = LineStyle | Literal["single", "double", "dotted", "dashed", "wave"]
