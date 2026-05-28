@@ -1,19 +1,12 @@
 # Python
 __pycache__/
 *.dist-info/
-.hatch/
 *.py[cod]
-*.pyo
-*.pyd
-.Python
 *.egg-info/
 dist/
 build/
-.eggs/
 .venv/
-venv/
 .uv/
-pip-wheel-metadata/
 
 # Coverage
 .coverage
@@ -38,7 +31,6 @@ bin/
 obj/
 publish/
 *.user
-*.suo
 .vs/
 *.nupkg
 *.pdb
@@ -47,11 +39,11 @@ publish/
 *.lib
 TestResults/
 
-# Benchmark artefacts
+# Benchmark artifacts
 scripts/benchmark_results.json
 
 # Scratch / test output
-artifacts/*.docx
+artifacts/
 *.docx
 
 # Env / secrets
@@ -66,7 +58,7 @@ secrets.toml
 .DS_Store
 Thumbs.db
 
-# settings
+# IDE / tools
 .claude/
 .vscode/
-
+.idea/
