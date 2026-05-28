@@ -18,10 +18,10 @@ jobs:
         include:
           - rid: linux-x64
             os: ubuntu-24.04
-            lib_name: libFastDocx.Native.so
+            lib_name: FastDocx.Native.so
           - rid: linux-arm64
             os: ubuntu-24.04-arm
-            lib_name: libFastDocx.Native.so
+            lib_name: FastDocx.Native.so
           - rid: win-x64
             os: windows-2022
             lib_name: FastDocx.Native.dll
@@ -30,10 +30,10 @@ jobs:
             lib_name: FastDocx.Native.dll
           - rid: osx-arm64
             os: macos-15
-            lib_name: libFastDocx.Native.dylib
+            lib_name: FastDocx.Native.dylib
           - rid: osx-x64
             os: macos-15
-            lib_name: libFastDocx.Native.dylib
+            lib_name: FastDocx.Native.dylib
 
     steps:
       - uses: actions/checkout@v4
