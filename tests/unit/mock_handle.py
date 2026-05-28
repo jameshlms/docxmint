@@ -42,6 +42,9 @@ class MockHandle:
         self._children[h] = []
         return h
 
+    # Collections that contain more than one element type (reserved for future use).
+    _MULTI_COLLECTION_TYPES: dict[str, frozenset[str]] = {}
+
     def _collection_type(self, collection: str) -> str:
         return {
             "paragraphs": "paragraph",
@@ -49,6 +52,8 @@ class MockHandle:
             "rows": "row",
             "cells": "cell",
             "runs": "run",
+            "images": "image",
+            "hyperlinks": "hyperlink",
             "sections": "section",
             "body": "",
         }.get(collection, collection.rstrip("s"))
@@ -112,6 +117,15 @@ class MockHandle:
 
     def get_str(self, handle: int, name: str) -> str:
         self._check_error("get_str")
+        if name == "text" and self._types.get(handle) == "paragraph":
+            parts = []
+            for h in self._children.get(handle, []):
+                t = self._types.get(h)
+                if t == "run":
+                    parts.append(self._handles.get(h, {}).get("text", ""))
+                elif t == "break":
+                    parts.append("\n")
+            return "".join(parts)
         val = self._handles.get(handle, {}).get(name)
         if val is None:
             return ""
@@ -121,6 +135,19 @@ class MockHandle:
         self._check_error("set_str")
         if handle not in self._handles:
             raise RuntimeError(f"Invalid handle {handle}")
+        if name == "text" and self._types.get(handle) == "paragraph":
+            # Replace all run children with a single run (mirrors native behaviour)
+            for child_h in list(self._children.get(handle, [])):
+                if self._types.get(child_h) == "run":
+                    self._children[handle].remove(child_h)
+                    self._handles.pop(child_h, None)
+                    self._types.pop(child_h, None)
+                    self._parent.pop(child_h, None)
+            run_h = self._alloc("run")
+            self._children.setdefault(handle, []).append(run_h)
+            self._parent[run_h] = handle
+            self._handles[run_h]["text"] = value
+            return
         self._handles[handle][name] = value
 
     # ------------------------------------------------------------------
@@ -133,6 +160,9 @@ class MockHandle:
             return 0
         if collection == "body":
             return len(self._children[handle])
+        multi = self._MULTI_COLLECTION_TYPES.get(collection)
+        if multi is not None:
+            return sum(1 for h in self._children[handle] if self._types.get(h) in multi)
         type_name = self._collection_type(collection)
         return sum(
             1 for h in self._children[handle]
@@ -141,11 +171,37 @@ class MockHandle:
 
     def get_child_handle(self, handle: int, collection: str, index: int) -> int:
         children = self._children.get(handle, [])
+
+        # Named style lookup: "style:{id}" — find by style_id property
+        if collection.startswith("style:"):
+            style_id = collection[6:]
+            for h in children:
+                if (
+                    self._types.get(h) == "style"
+                    and self._handles.get(h, {}).get("style_id") == style_id
+                ):
+                    return h
+            return 0
+
+        # Default style lookup
+        if collection == "default_style":
+            for h in children:
+                if (
+                    self._types.get(h) == "style"
+                    and self._handles.get(h, {}).get("is_default") == 1
+                ):
+                    return h
+            return 0
+
         if collection == "body":
             matching = children
         else:
-            type_name = self._collection_type(collection)
-            matching = [h for h in children if self._types.get(h) == type_name]
+            multi = self._MULTI_COLLECTION_TYPES.get(collection)
+            if multi is not None:
+                matching = [h for h in children if self._types.get(h) in multi]
+            else:
+                type_name = self._collection_type(collection)
+                matching = [h for h in children if self._types.get(h) == type_name]
         if index < 0:
             index = len(matching) + index
         if 0 <= index < len(matching):
@@ -173,6 +229,30 @@ class MockHandle:
         self._handles.pop(handle, None)
         self._children.pop(handle, None)
         self._types.pop(handle, None)
+
+    def add_image(
+        self,
+        parent: int,
+        data: bytes,
+        content_type: str,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        self._check_error("add_image")
+        h = self._alloc("image")
+        self._handles[h]["_image_data"] = data
+        self._handles[h]["content_type"] = content_type
+        self._handles[h]["width_emu"] = width_emu
+        self._handles[h]["height_emu"] = height_emu
+        self._handles[h]["width"] = width_emu / 914400
+        self._handles[h]["height"] = height_emu / 914400
+        self._children.setdefault(parent, []).append(h)
+        self._parent[h] = parent
+        return h
+
+    def get_image_data(self, handle: int) -> bytes:
+        self._check_error("get_image_data")
+        return self._handles.get(handle, {}).get("_image_data", b"")
 
     def add_table(self, doc_handle: int, rows: int, cols: int) -> int:
         self._check_error("add_table")

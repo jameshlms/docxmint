@@ -147,14 +147,14 @@ class TestDocumentAsCollection:
             doc.paragraphs.append(Table(rows=1, cols=1))  # type: ignore
 
     def test_getitem_by_type_returns_filtered_view(self):
-        from fastdocx.collection import DocumentView
+        from fastdocx import DocumentView
         from fastdocx.paragraph import Paragraph
         doc, _ = _make_doc()
         view = doc[Paragraph]
         assert isinstance(view, DocumentView)
 
     def test_group_two_types(self):
-        from fastdocx.collection import DocumentView
+        from fastdocx import DocumentView
         from fastdocx.paragraph import Paragraph
         from fastdocx.table import Table
         doc, _ = _make_doc()
@@ -246,6 +246,259 @@ class TestParagraphProxy:
         para = doc.paragraphs[0]
         with pytest.raises(AttributeError):
             _ = para.no_such_attr
+
+
+# ---------------------------------------------------------------------------
+# Paragraph spacing
+# ---------------------------------------------------------------------------
+
+class TestParagraphSpacing:
+    def test_defaults_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        assert para.space_before == 0.0
+        assert para.space_after == 0.0
+        assert para.line_spacing == 1.0
+
+    def test_constructor_kwargs(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("x", space_before=6.0, space_after=3.0, line_spacing=1.5)
+        assert para.space_before == 6.0
+        assert para.space_after == 3.0
+        assert para.line_spacing == 1.5
+
+    def test_construction_writable(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        para.space_before = 12.0
+        para.space_after = 6.0
+        para.line_spacing = 2.0
+        assert para.space_before == 12.0
+        assert para.space_after == 6.0
+        assert para.line_spacing == 2.0
+
+    def test_round_trip_through_document(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("x", space_before=6.0, space_after=3.0, line_spacing=1.5)
+        doc.paragraphs.append(para)
+        assert abs(para.space_before - 6.0) < 1e-9
+        assert abs(para.space_after - 3.0) < 1e-9
+        assert abs(para.line_spacing - 1.5) < 1e-9
+
+    def test_live_setters(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph())
+        para = doc.paragraphs[0]
+        para.space_before = 8.0
+        para.space_after = 4.0
+        para.line_spacing = 1.15
+        assert abs(para.space_before - 8.0) < 1e-9
+        assert abs(para.space_after - 4.0) < 1e-9
+        assert abs(para.line_spacing - 1.15) < 1e-9
+
+    def test_spacing_preserved_in_snapshot(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("y", space_before=6.0, space_after=3.0))
+        snap = doc.paragraphs[0].copy()
+        assert abs(snap.space_before - 6.0) < 1e-9
+        assert abs(snap.space_after - 3.0) < 1e-9
+
+    def test_spacing_in_copy_data_live(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("z", line_spacing=1.5))
+        data = doc.paragraphs[0]._copy_data()
+        assert abs(data["space_before"] - 0.0) < 1e-9
+        assert abs(data["line_spacing"] - 1.5) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Paragraph indentation
+# ---------------------------------------------------------------------------
+
+class TestParagraphIndentation:
+    def test_defaults_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        assert para.indent_left == 0.0
+        assert para.indent_right == 0.0
+        assert para.indent_hanging == 0.0
+
+    def test_constructor_kwargs(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("x", indent_left=0.5, indent_right=0.25, indent_hanging=0.25)
+        assert para.indent_left == 0.5
+        assert para.indent_right == 0.25
+        assert para.indent_hanging == 0.25
+
+    def test_construction_writable(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        para.indent_left = 1.0
+        para.indent_right = 0.5
+        para.indent_hanging = 0.5
+        assert para.indent_left == 1.0
+        assert para.indent_right == 0.5
+        assert para.indent_hanging == 0.5
+
+    def test_round_trip_through_document(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        para = Paragraph("x", indent_left=0.5, indent_right=0.25, indent_hanging=0.25)
+        doc.paragraphs.append(para)
+        assert abs(para.indent_left - 0.5) < 1e-9
+        assert abs(para.indent_right - 0.25) < 1e-9
+        assert abs(para.indent_hanging - 0.25) < 1e-9
+
+    def test_live_setters(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph())
+        para = doc.paragraphs[0]
+        para.indent_left = 0.75
+        para.indent_right = 0.5
+        para.indent_hanging = 0.25
+        assert abs(para.indent_left - 0.75) < 1e-9
+        assert abs(para.indent_right - 0.5) < 1e-9
+        assert abs(para.indent_hanging - 0.25) < 1e-9
+
+    def test_indentation_preserved_in_snapshot(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("y", indent_left=0.5, indent_hanging=0.25))
+        snap = doc.paragraphs[0].copy()
+        assert abs(snap.indent_left - 0.5) < 1e-9
+        assert abs(snap.indent_hanging - 0.25) < 1e-9
+
+    def test_indentation_in_copy_data_live(self):
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("z", indent_left=1.0))
+        data = doc.paragraphs[0]._copy_data()
+        assert abs(data["indent_left"] - 1.0) < 1e-9
+        assert abs(data["indent_right"] - 0.0) < 1e-9
+        assert abs(data["indent_hanging"] - 0.0) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Construction-state runs — text derived from runs, mutable before append
+# ---------------------------------------------------------------------------
+
+class TestConstructionRuns:
+    def test_text_derives_from_runs_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("hello")
+        assert para.text == "hello"
+
+    def test_empty_para_has_empty_text(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        assert para.text == ""
+
+    def test_runs_not_empty_when_text_given(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph("hello")
+        assert len(para.runs) == 1
+        assert para.runs[0].text == "hello"
+
+    def test_runs_empty_when_no_text(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        assert len(para.runs) == 0
+
+    def test_append_run_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        para = Paragraph()
+        para.runs.append(Run("world", bold=True))
+        assert len(para.runs) == 1
+        assert para.runs[0].text == "world"
+        assert para.runs[0].bold is True
+
+    def test_text_concatenates_multiple_construction_runs(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        para = Paragraph()
+        para.runs.append(Run("Hello "))
+        para.runs.append(Run("world"))
+        assert para.text == "Hello world"
+
+    def test_add_run_works_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        run = para.add_run("hello")
+        assert len(para.runs) == 1
+        assert run.text == "hello"
+
+    def test_text_setter_replaces_runs_in_construction(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        para = Paragraph()
+        para.runs.append(Run("old"))
+        para.text = "new"
+        assert len(para.runs) == 1
+        assert para.text == "new"
+
+    def test_construction_runs_survive_round_trip_through_document(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        para = Paragraph()
+        para.runs.append(Run("Hello ", bold=True))
+        para.runs.append(Run("world"))
+        doc.paragraphs.append(para)
+        assert para.text == "Hello world"
+        assert len(para.runs) == 2
+
+    def test_construction_run_formatting_survives_materialisation(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        para = Paragraph()
+        para.runs.append(Run("bold", bold=True))
+        doc.paragraphs.append(para)
+        assert para.runs[0].bold is True
+
+    def test_construction_runs_reject_wrong_type(self):
+        from fastdocx.image import Image
+        from fastdocx.paragraph import Paragraph
+        para = Paragraph()
+        with pytest.raises(TypeError):
+            para.runs.append(Image(data=b"\x89PNG\r\n\x1a\n" + b"\x00" * 56))  # type: ignore
+
+    def test_stale_para_text_raises(self):
+        from fastdocx.errors import StaleProxyError
+        from fastdocx.paragraph import Paragraph
+        doc, _ = _make_doc()
+        doc.paragraphs.append(Paragraph("bye"))
+        para = doc.paragraphs[0]
+        doc.paragraphs.remove(para)
+        with pytest.raises(StaleProxyError):
+            _ = para.text
+
+    def test_snapshot_preserves_construction_runs(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        para = Paragraph()
+        para.runs.append(Run("A", bold=True))
+        para.runs.append(Run("B"))
+        snap = para.copy()
+        assert snap.text == "AB"
+        assert len(snap.runs) == 2
+
+    def test_snapshot_can_be_appended_with_runs(self):
+        from fastdocx.paragraph import Paragraph
+        from fastdocx.run import Run
+        doc, _ = _make_doc()
+        para = Paragraph()
+        para.runs.append(Run("snap", italic=True))
+        snap = para.copy()
+        doc.paragraphs.append(snap)
+        assert snap.text == "snap"
+        assert snap.runs[0].italic is True
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +631,7 @@ class TestTableProxy:
 
 class TestDocumentView:
     def test_slice_returns_view(self):
-        from fastdocx.collection import DocumentView
+        from fastdocx import DocumentView
         from fastdocx.paragraph import Paragraph
         doc, _ = _make_doc()
         for i in range(4):
