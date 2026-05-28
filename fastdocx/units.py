@@ -125,8 +125,7 @@ class Color:
                 except ValueError:
                     pass
         raise ValueError(
-            f"Invalid color {value!r}. "
-            "Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
+            f"Invalid color {value!r}. Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
         )
 
 
