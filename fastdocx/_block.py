@@ -7,37 +7,51 @@ build live ``DocumentView`` objects, or ``None`` when the container is not yet l
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-from fastdocx._proxy.base import ProxyBase
+from fastdocx._proxy.base import ProxyBase as _ProxyBase
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from fastdocx._collection import DocumentView
     from fastdocx._native.handle import Handle
-    from fastdocx.collection import DocumentView
     from fastdocx.document import Document
-    from fastdocx.paragraph import HorizontalRule, Paragraph
+    from fastdocx.image import Image
+    from fastdocx.paragraph import HorizontalRule, LineStyleArg, Paragraph
     from fastdocx.table import Table
 
-    _BlockCtx = tuple[int, Handle, Document]
+
+type BlockCtx = tuple[int | None, Handle, Document | None]
 
 
 class BlockContainerMixin:
-    """Mixin that adds ``paragraphs``, ``tables``, and ``add_*`` helpers.
+    """Mixin that adds ``paragraphs``, ``tables``, and ``add_*`` convenience helpers.
 
-    Concrete classes implement ``_block_context()``; everything else is derived
+    Applied to :class:`~fastdocx.document.Document` and :class:`~fastdocx.table.Cell`.
+    Concrete classes implement :meth:`_block_context`; everything else is derived
     from that single hook.
+
+    Provides:
+
+    - ``paragraphs`` — live :class:`~fastdocx.collection.DocumentView` of paragraphs
+    - ``tables`` — live :class:`~fastdocx.collection.DocumentView` of tables
+    - :meth:`add_paragraph` — create and append a paragraph in one call
+    - :meth:`add_heading` — create and append a heading paragraph in one call
+    - :meth:`add_table` — create and append a table in one call
+    - :meth:`add_horizontal_rule` — create and append a horizontal rule in one call
     """
 
-    def _block_context(self) -> _BlockCtx | None:
+    def _block_context(self) -> BlockCtx | None:
         """Return ``(handle, lib, document)`` for collection access, or ``None`` when not live."""
         raise NotImplementedError(f"{type(self).__name__} must implement _block_context()")
 
-    def _block_view[T: ProxyBase](
+    def _block_view[T: _ProxyBase](
         self,
         elem_type: type[T],
         collection: str,
     ) -> DocumentView[T]:
-        from fastdocx.collection import DocumentView
+        from fastdocx._collection import DocumentView
 
         ctx = self._block_context()
         if ctx is None:
@@ -45,12 +59,12 @@ class BlockContainerMixin:
         handle, lib, document = ctx
         return DocumentView(handle, document, lib, elem_type, collection)
 
-    def _block_append[T: ProxyBase](self, element: T) -> T:
+    def _block_append[T: _ProxyBase](self, element: T) -> T:
         ctx = self._block_context()
         if ctx is None:
             raise ValueError(f"Cannot add content to a {type(self).__name__} that is not live.")
         handle, lib, document = ctx
-        from fastdocx.collection import DocumentView
+        from fastdocx._collection import DocumentView
 
         view = DocumentView(handle, document, lib, type(element), "body")
         return view._append_one(element)
@@ -84,19 +98,46 @@ class BlockContainerMixin:
     # ------------------------------------------------------------------
 
     def add_paragraph(self, text: str = "", style: str = "Normal") -> Paragraph:
-        """Append a new paragraph and return the live proxy."""
+        """Append a new paragraph and return the live proxy.
+
+        Args:
+            text: Initial text content. Defaults to an empty paragraph.
+            style: Paragraph style name. Defaults to ``"Normal"``.
+
+        Returns:
+            A live :class:`~fastdocx.paragraph.Paragraph` proxy.
+        """
         from fastdocx.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=style))
 
     def add_heading(self, text: str = "", level: int = 1) -> Paragraph:
-        """Append a heading paragraph and return the live proxy."""
+        """Append a heading paragraph and return the live proxy.
+
+        This is a shorthand for ``add_paragraph(text, style="Heading<level>")``.
+
+        Args:
+            text: Heading text.
+            level: Heading level (1–9). Defaults to ``1``.
+
+        Returns:
+            A live :class:`~fastdocx.paragraph.Paragraph` proxy styled as a heading.
+        """
         from fastdocx.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=f"Heading{level}"))
 
     def add_table(self, rows: int, cols: int, style: str = "TableGrid") -> Table:
-        """Append a new table and return the live proxy."""
+        """Append a new table and return the live proxy.
+
+        Args:
+            rows: Number of rows.
+            cols: Number of columns.
+            style: Table style name. Defaults to ``"TableGrid"``.
+
+        Returns:
+            A live :class:`~fastdocx.table.Table` proxy.
+        """
         from fastdocx.table import Table
 
         return self._block_append(Table(rows, cols, style=style))
@@ -104,13 +145,85 @@ class BlockContainerMixin:
     def add_horizontal_rule(
         self,
         *,
-        line_style: Literal["single", "double", "dotted", "dashed", "wave"] = "single",
+        line_style: LineStyleArg = "single",
         line_width: float = 6.0,
         line_color: str = "auto",
     ) -> HorizontalRule:
-        """Append a horizontal rule and return the live proxy."""
+        """Append a horizontal rule and return the live proxy.
+
+        Args:
+            line_style: Border style — ``"single"`` (default), ``"double"``,
+                ``"dotted"``, ``"dashed"``, or ``"wave"``.
+            line_width: Rule thickness in points. Defaults to ``6.0``.
+            line_color: Rule colour as ``"#RRGGBB"`` or ``"auto"``. Defaults to ``"auto"``.
+
+        Returns:
+            A live :class:`~fastdocx.paragraph.HorizontalRule` proxy.
+        """
         from fastdocx.paragraph import HorizontalRule
 
         return self._block_append(
             HorizontalRule(line_style=line_style, line_width=line_width, line_color=line_color)
+        )
+
+    def add_bullet(self, text: str = "", level: int = 0) -> Paragraph:
+        """Append a bullet list item and return the live proxy.
+
+        Args:
+            text: Item text.
+            level: Nesting level (0–8). Defaults to ``0``.
+        """
+        from fastdocx.paragraph import Paragraph
+
+        return self._block_append(Paragraph(text, list_style="bullet", list_level=level))
+
+    def add_numbered(self, text: str = "", level: int = 0) -> Paragraph:
+        """Append a numbered list item and return the live proxy.
+
+        Args:
+            text: Item text.
+            level: Nesting level (0–8). Defaults to ``0``.
+        """
+        from fastdocx.paragraph import Paragraph
+
+        return self._block_append(Paragraph(text, list_style="number", list_level=level))
+
+    def add_image(
+        self,
+        src: str | Path | None = None,
+        *,
+        data: bytes | None = None,
+        content_type: str | None = None,
+        width: float = 0.0,
+        height: float = 0.0,
+        alt_text: str = "",
+    ) -> Image:
+        """Append a standalone paragraph containing a single inline image.
+
+        Creates a new blank paragraph, appends the image to it, and returns
+        the live :class:`~fastdocx.image.Image` proxy — the same pattern as
+        ``python-docx``'s ``add_picture()``.
+
+        Args:
+            src: Path to an image file. Content type is inferred from the
+                extension unless *content_type* is also given.
+            data: Raw image bytes (alternative to *src*).
+            content_type: MIME type, e.g. ``"image/png"``.
+            width: Display width in inches. ``0.0`` uses the image's natural size.
+            height: Display height in inches. ``0.0`` uses the image's natural size.
+            alt_text: Accessibility description for screen readers.
+
+        Returns:
+            A live :class:`~fastdocx.image.Image` proxy for the inserted image.
+        """
+        from fastdocx.paragraph import Paragraph
+
+        para = self._block_append(Paragraph())
+        return para.add_image(
+            src,
+            data=data,
+            content_type=content_type,
+            width=width,
+            height=height,
+            alt_text=alt_text,
         )

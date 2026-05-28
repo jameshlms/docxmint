@@ -1,11 +1,11 @@
 from collections.abc import Iterator
 from typing import Literal, overload
 
-from fastdocx._proxy.base import ProxyBase
-from fastdocx.collection import DocumentView
+from fastdocx._collection import DocumentView as DocumentView
+from fastdocx._proxy.base import ProxyBase as _ProxyBase
 from fastdocx.paragraph import Paragraph
 
-class Cell(ProxyBase):
+class Cell(_ProxyBase):
     text: str
     width: float
     vertical_alignment: Literal["top", "center", "bottom"]
@@ -22,7 +22,7 @@ class Cell(ProxyBase):
     def __len__(self) -> int: ...
     def __iter__(self) -> Iterator[Paragraph]: ...
 
-class Row(ProxyBase):
+class Row(_ProxyBase):
     height: float
     height_rule: Literal["auto", "exact", "atLeast"]
     is_header: str
@@ -37,7 +37,7 @@ class Row(ProxyBase):
     def __iter__(self) -> Iterator[Cell]: ...
     def __getitem__(self, index: int) -> Cell: ...
 
-class Table(ProxyBase):
+class Table(_ProxyBase):
     style: str
     alignment: Literal["left", "center", "right"] | None
     width: float

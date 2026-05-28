@@ -2,20 +2,39 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Literal, overload
+from collections.abc import Generator, Iterator
+from typing import Any, Literal, overload, override
 
 from fastdocx._block import BlockContainerMixin
+from fastdocx._block import BlockCtx as _BlockCtx
+from fastdocx._collection import DocumentView
 from fastdocx._proxy.base import ProxyBase, ProxyState
 from fastdocx._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
-from fastdocx.collection import DocumentView
-
-if TYPE_CHECKING:
-    from fastdocx.paragraph import Paragraph
+from fastdocx.paragraph import Paragraph
 
 
 class Cell(BlockContainerMixin, ProxyBase):
-    """A single table cell."""
+    """A single table cell.
+
+    Cells are live proxies — always accessed through a :class:`Row`:
+
+    .. code-block:: python
+
+        cell = table.rows[0].cells[0]
+        cell.text = "Header"
+        cell.vertical_alignment = "center"
+
+    Or via the shorthand ``table[row, col]`` and ``table.cell(row, col)``:
+
+    .. code-block:: python
+
+        table[0, 0].text = "Header"
+
+    Cells are block containers — they support the same ``add_paragraph``,
+    ``add_table``, ``paragraphs``, and ``tables`` API as a document body.
+    Iterating a cell yields block elements (paragraphs and tables) in
+    document order.
+    """
 
     _child_type_name = "cell"
 
@@ -30,26 +49,17 @@ class Cell(BlockContainerMixin, ProxyBase):
     def __init__(self) -> None:
         super().__init__()
 
-    def _block_context(self) -> tuple[int, Any, Any] | None:
+    @override
+    def _block_context(self) -> _BlockCtx | None:
         if not self._is_live:
             return None
         self._check_valid()
         return (self._getattr("_native"), self._get_lib(), self._getattr("_document"))
 
-    @property
-    def tables(self) -> DocumentView[Table]:  # type: ignore[override]
-        return DocumentView.empty(Table, "tables")
-
-    @tables.setter
-    def tables(self, _: object) -> None:
-        pass
-
-    def add_table(self, rows: int, cols: int, style: str = "TableGrid") -> Table:  # type: ignore[override]
-        raise NotImplementedError("Nested tables inside cells are not yet supported in v1.")
-
     def merge(self, other: Cell) -> None:
         raise NotImplementedError("Cell.merge() is not yet implemented in v1.")
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         return {
             "text": self.text,
@@ -57,6 +67,7 @@ class Cell(BlockContainerMixin, ProxyBase):
             "vertical_alignment": self.vertical_alignment,
         }
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "Cell(<stale>)"
@@ -75,17 +86,45 @@ class Cell(BlockContainerMixin, ProxyBase):
         return bool(self.text)
 
     def __len__(self) -> int:
+        if not self._is_live:
+            return 0
         try:
-            return len(self.paragraphs)
+            return self._get_lib().get_count(self._getattr("_native"), "body")
         except Exception:
             return 0
 
-    def __iter__(self) -> Iterator[Paragraph]:
-        return iter(self.paragraphs)
+    def __iter__(self) -> Iterator[Paragraph | Table]:
+        if not self._is_live:
+            return iter([])
+        self._check_valid()
+        return iter(
+            DocumentView(
+                self._getattr("_native"),
+                self._getattr("_document"),
+                self._get_lib(),
+                (Paragraph, Table),
+                "body",
+            )
+        )
 
 
 class Row(ProxyBase):
-    """A table row."""
+    """A table row — a live proxy that provides access to its :attr:`cells`.
+
+    Rows are accessed through :attr:`Table.rows`:
+
+    .. code-block:: python
+
+        row = table.rows[0]
+        for cell in row:
+            print(cell.text)
+
+    Or via index shorthand on the table:
+
+    .. code-block:: python
+
+        row = table[0]    # same as table.rows[0]
+    """
 
     _child_type_name = "row"
 
@@ -112,12 +151,14 @@ class Row(ProxyBase):
             "cells",
         )
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         return {
             "height": self.height,
             "height_rule": self.height_rule,
         }
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "Row(<stale>)"
@@ -217,14 +258,13 @@ class Table(ProxyBase):
         )
 
     @property
-    def data(self) -> list[list[str]]:
+    def data(self) -> Generator[list[str], None, None]:
         """Plain text grid — plug directly into a DataFrame constructor."""
         if not self._is_live:
-            return []
-        result: list[list[str]] = []
+            yield []
+
         for row in self.rows:
-            result.append([cell.text for cell in row.cells])
-        return result
+            yield [cell.text for cell in row.cells]
 
     def cell(self, row: int, col: int) -> Cell:
         """Return the cell at (row, col)."""
@@ -237,18 +277,20 @@ class Table(ProxyBase):
     # Materialisation
     # ------------------------------------------------------------------
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
             return dict(self._getattr("_data"))
-        return {
-            "style": self.style,
-            "alignment": self.alignment,
-        }
+        return dict(
+            style=self.style,
+            alignment=self.alignment,
+        )
 
     # ------------------------------------------------------------------
     # Dunders
     # ------------------------------------------------------------------
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "Table(<stale>)"
