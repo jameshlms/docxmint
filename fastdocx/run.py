@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import contextlib
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import Any, Literal, Self, override
 
+from fastdocx._proxy.base import UNSET as _UNSET
 from fastdocx._proxy.base import ProxyBase, ProxyState
 from fastdocx._proxy.descriptors import (
     BoolProperty,
@@ -13,39 +13,47 @@ from fastdocx._proxy.descriptors import (
     FloatProperty,
     StringProperty,
 )
-from fastdocx.formats import RGBColor  # backward-compat re-export
+from fastdocx.formats import RGBColor
 from fastdocx.units import Color
-
-if TYPE_CHECKING:
-    pass
 
 __all__ = ["Run", "Color", "RGBColor"]
 
 
 class Run(ProxyBase):
-    """A run element — either a live proxy or a construction object.
+    """A run element — a contiguous span of text with uniform character formatting.
 
-    **Construction**::
+    **Construction** (before appending to a paragraph):
+
+    .. code-block:: python
 
         run = Run("Hello", bold=True, font_name="Arial", font_size=12)
         para.runs.append(run)
 
-    **Live proxy** (from para.runs[i])::
+    **Live proxy** (from ``para.runs[i]`` or ``para.add_run()``):
+
+    .. code-block:: python
 
         run = para.runs[0]
         run.bold = True
         run.color = "#FF0000"
 
-    Mutually exclusive pairs raise ValueError if set together:
+    **Mutually exclusive pairs** — setting both raises ``ValueError``:
+
     - ``all_caps`` and ``small_caps``
     - ``superscript`` and ``subscript``
     - ``emboss`` and ``imprint``
+
+    For bulk edits use the :meth:`edit` context manager to batch all writes
+    into a single FFI call.
     """
 
     _child_type_name = "run"
 
     # Text
     text = StringProperty("text", default="")
+
+    # Character style by name
+    style = StringProperty("style", default="")
 
     # Formatting — boolean
     bold = BoolProperty("bold")
@@ -138,6 +146,7 @@ class Run(ProxyBase):
         self,
         text: str = "",
         *,
+        style: str = "",
         bold: bool = False,
         italic: bool = False,
         strikethrough: bool = False,
@@ -169,6 +178,8 @@ class Run(ProxyBase):
         data: dict[str, Any] = {}
         if text:
             data["text"] = text
+        if style:
+            data["style"] = style
         if bold:
             data["bold"] = True
         if italic:
@@ -219,81 +230,240 @@ class Run(ProxyBase):
         self._setattr("_data", data)
 
     def set_bold(self, value: bool = True) -> Self:
+        """Set bold and return *self* for chaining."""
         self.bold = value
         return self
 
     def set_italic(self, value: bool = True) -> Self:
+        """Set italic and return *self* for chaining."""
         self.italic = value
         return self
 
     def set_strikethrough(self, value: bool = True) -> Self:
+        """Set strikethrough and return *self* for chaining."""
         self.strikethrough = value
         return self
 
     def set_underline(self, value: bool | str = True) -> Self:
+        """Set underline style and return *self* for chaining.
+
+        Args:
+            value: ``True`` for single underline, ``False`` to clear, or a named
+                style: ``"single"``, ``"double"``, ``"dotted"``, ``"dashed"``, ``"wave"``.
+        """
         self.underline = value  # type: ignore[assignment]
         return self
 
     def set_all_caps(self, value: bool = True) -> Self:
+        """Set all-caps and return *self* for chaining. Mutually exclusive with ``small_caps``."""
         self.all_caps = value
         return self
 
     def set_small_caps(self, value: bool = True) -> Self:
+        """Set small-caps and return *self* for chaining. Mutually exclusive with ``all_caps``."""
         self.small_caps = value
         return self
 
     def set_superscript(self, value: bool = True) -> Self:
+        """Set superscript and return *self* for chaining. Mutually exclusive with ``subscript``."""
         self.superscript = value
         return self
 
     def set_subscript(self, value: bool = True) -> Self:
+        """Set subscript and return *self* for chaining. Mutually exclusive with ``superscript``."""
         self.subscript = value
         return self
 
     def set_hidden(self, value: bool = True) -> Self:
+        """Set hidden (non-printing) and return *self* for chaining."""
         self.hidden = value
         return self
 
     def set_color(self, value: str | Color) -> Self:
+        """Set text colour and return *self* for chaining.
+
+        Args:
+            value: A :class:`~fastdocx.units.Color` instance, ``"#RRGGBB"`` hex string,
+                or ``"auto"``.
+        """
         self.color = value
         return self
 
     def set_highlight(self, value: str) -> Self:
+        """Set highlight colour and return *self* for chaining.
+
+        Args:
+            value: A named highlight colour such as ``"yellow"``, ``"cyan"``, ``"green"``, etc.
+        """
         self.highlight = value  # type: ignore[assignment]
         return self
 
     def set_font(self, name: str, size: float | None = None) -> Self:
+        """Set font name (and optionally size) and return *self* for chaining.
+
+        Args:
+            name: Font family name, e.g. ``"Arial"`` or ``"Times New Roman"``.
+            size: Font size in points. Omit to leave the current size unchanged.
+        """
         self.font_name = name
         if size is not None:
             self.font_size = size
         return self
 
     def set_language(self, tag: str) -> Self:
+        """Set the language tag (BCP-47) and return *self* for chaining.
+
+        Args:
+            tag: Language tag, e.g. ``"en-US"`` or ``"fr-FR"``.
+        """
         self.language = tag
         return self
 
     # ------------------------------------------------------------------
-    # edit() — batch writes into a single set_many call
+    # format() — batch writes into a single set_many call
     # ------------------------------------------------------------------
 
-    @contextlib.contextmanager
-    def edit(self):
-        """Context manager that batches property writes into a single FFI call."""
-        if not self._is_live:
-            yield self
-            return
-        self._check_valid()
-        pending: dict[str, Any] = {}
-        yield _EditProxy(self, pending)
-        if pending:
-            self._get_lib().set_many(self._getattr("_native"), pending)
+    def format(
+        self,
+        *,
+        style: str = _UNSET,
+        text: str = _UNSET,
+        bold: bool = _UNSET,
+        italic: bool = _UNSET,
+        strikethrough: bool = _UNSET,
+        underline: bool | Literal["single", "double", "dotted", "dashed", "wave"] = _UNSET,
+        all_caps: bool = _UNSET,
+        small_caps: bool = _UNSET,
+        superscript: bool = _UNSET,
+        subscript: bool = _UNSET,
+        hidden: bool = _UNSET,
+        emboss: bool = _UNSET,
+        imprint: bool = _UNSET,
+        outline: bool = _UNSET,
+        shadow: bool = _UNSET,
+        color: str | Color | None = _UNSET,
+        highlight: str | None = _UNSET,
+        font_name: str = _UNSET,
+        font_size: float = _UNSET,
+        language: str = _UNSET,
+    ) -> Self:
+        """Set multiple run properties in a single FFI call and return *self*.
+
+        Only the keyword arguments you pass are changed; omitted properties are
+        left untouched. Raises :exc:`ValueError` for mutually exclusive pairs
+        (``all_caps``/``small_caps``, ``superscript``/``subscript``,
+        ``emboss``/``imprint``) before any write is attempted.
+
+        Args:
+            text: Run text content.
+            bold: Bold weight.
+            italic: Italic style.
+            strikethrough: Strikethrough decoration.
+            underline: ``True`` for single underline, ``False`` to clear, or a
+                named style: ``"single"``, ``"double"``, ``"dotted"``,
+                ``"dashed"``, ``"wave"``.
+            all_caps: All-caps transform. Mutually exclusive with ``small_caps``.
+            small_caps: Small-caps transform. Mutually exclusive with ``all_caps``.
+            superscript: Superscript baseline. Mutually exclusive with ``subscript``.
+            subscript: Subscript baseline. Mutually exclusive with ``superscript``.
+            hidden: Hidden (non-printing) text.
+            emboss: Emboss effect. Mutually exclusive with ``imprint``.
+            imprint: Imprint (engrave) effect. Mutually exclusive with ``emboss``.
+            outline: Outline effect.
+            shadow: Shadow effect.
+            color: Text colour as ``"#RRGGBB"``, ``"auto"``, or a
+                :class:`~fastdocx.units.Color` instance.
+            highlight: Named highlight colour, e.g. ``"yellow"``.
+            font_name: Font family name.
+            font_size: Font size in points.
+            language: BCP-47 language tag, e.g. ``"en-US"``.
+
+        Returns:
+            *self*, allowing chaining.
+
+        Example:
+            .. code-block:: python
+
+                run.format(bold=True, italic=True, color="#CC0000", font_size=14)
+        """
+        if all_caps is not _UNSET and small_caps is not _UNSET and all_caps and small_caps:
+            raise ValueError("'all_caps' and 'small_caps' are mutually exclusive.")
+        if superscript is not _UNSET and subscript is not _UNSET and superscript and subscript:
+            raise ValueError("'superscript' and 'subscript' are mutually exclusive.")
+        if emboss is not _UNSET and imprint is not _UNSET and emboss and imprint:
+            raise ValueError("'emboss' and 'imprint' are mutually exclusive.")
+
+        changes: dict[str, Any] = {}
+
+        if style is not _UNSET:
+            changes["style"] = style
+
+        for _name, _val in (
+            ("text", text),
+            ("bold", bold),
+            ("italic", italic),
+            ("strikethrough", strikethrough),
+            ("all_caps", all_caps),
+            ("small_caps", small_caps),
+            ("superscript", superscript),
+            ("subscript", subscript),
+            ("hidden", hidden),
+            ("emboss", emboss),
+            ("imprint", imprint),
+            ("outline", outline),
+            ("shadow", shadow),
+            ("font_name", font_name),
+            ("font_size", font_size),
+            ("language", language),
+        ):
+            if _val is not _UNSET:
+                changes[_name] = _val
+
+        if underline is not _UNSET:
+            if underline is True:
+                changes["underline"] = "single"
+            elif underline is False:
+                changes["underline"] = ""
+            else:
+                changes["underline"] = underline
+
+        if color is not _UNSET and color is not None:
+            if isinstance(color, Color):
+                changes["color"] = color.to_hex()
+            elif color == "auto":
+                changes["color"] = "auto"
+            else:
+                try:
+                    changes["color"] = Color.from_hex(color).to_hex()
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid color {color!r}. "
+                        "Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
+                    ) from None
+
+        if highlight is not _UNSET and highlight is not None:
+            changes["highlight"] = highlight
+
+        self._apply_changes(changes)
+        return self
 
     # ------------------------------------------------------------------
     # split() and __add__
     # ------------------------------------------------------------------
 
     def split(self, index: int) -> tuple[Run, Run]:
-        """Split run at character index. Original is left in an undefined state."""
+        """Split the run at *index* and return two new construction-state runs.
+
+        The two returned runs share all formatting of the original. The original
+        run is left in an undefined state and should not be used afterwards.
+
+        Args:
+            index: Character position at which to split. Characters ``[:index]``
+                go to the first run, ``[index:]`` to the second.
+
+        Returns:
+            A tuple ``(left, right)`` of new construction-state :class:`Run` objects.
+        """
         text = self.text
         a = Run(text[:index])
         b = Run(text[index:])
@@ -323,6 +493,7 @@ class Run(ProxyBase):
     # Materialisation
     # ------------------------------------------------------------------
 
+    @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
             return dict(self._getattr("_data"))
@@ -341,7 +512,7 @@ class Run(ProxyBase):
         def get_str_or_none(name: str) -> str | None:
             try:
                 v = lib.get_str(native, name)
-                return v if v else None
+                return v or None
             except Exception:
                 return None
 
@@ -353,6 +524,7 @@ class Run(ProxyBase):
 
         return dict(
             text=get_str("text"),
+            style=get_str("style"),
             bold=get_bool("bold"),
             italic=get_bool("italic"),
             strikethrough=get_bool("strikethrough"),
@@ -381,6 +553,7 @@ class Run(ProxyBase):
             language=get_str("language"),
         )
 
+    @override
     def __repr__(self) -> str:
         if self.state is ProxyState.STALE:
             return "Run(<stale>)"
@@ -402,33 +575,6 @@ class Run(ProxyBase):
 
     def __len__(self) -> int:
         return len(self.text)
-
-
-class _EditProxy:
-    """Accumulates property writes; the context manager flushes them via set_many."""
-
-    def __init__(self, run: Run, pending: dict[str, Any]) -> None:
-        object.__setattr__(self, "_run", run)
-        object.__setattr__(self, "_pending", pending)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("_"):
-            object.__setattr__(self, name, value)
-            return
-        pending: dict[str, Any] = object.__getattribute__(self, "_pending")
-        match value:
-            case bool():
-                pending[name] = int(value)
-            case str():
-                pending[name] = value
-            case float() | int():
-                pending[name] = value
-            case _:
-                raise TypeError(f"Cannot batch-write {name!r}={value!r}")
-
-    def __getattr__(self, name: str) -> Any:
-        run: Run = object.__getattribute__(self, "_run")
-        return getattr(run, name)
 
 
 def _check_mutex(**kwargs: bool) -> None:
