@@ -1,7 +1,7 @@
 using Xunit;
-using static DocxMint.Native.Tests.TestHelper;
+using static BlueFox.Native.Tests.TestHelper;
 
-namespace DocxMint.Native.Tests;
+namespace BlueFox.Native.Tests;
 
 /// <summary>
 /// Tests for the generic property/collection API — GetInt, SetInt, GetFloat, SetFloat,

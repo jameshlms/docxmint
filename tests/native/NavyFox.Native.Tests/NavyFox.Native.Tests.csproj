@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../native/DocxMint.Native/DocxMint.Native.csproj" />
+    <ProjectReference Include="../../../native/BlueFox.Native/BlueFox.Native.csproj" />
   </ItemGroup>
 
 </Project>

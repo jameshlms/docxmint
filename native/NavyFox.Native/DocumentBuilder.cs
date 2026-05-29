@@ -4,7 +4,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace DocxMint.Native;
+namespace BlueFox.Native;
 
 // ---------------------------------------------------------------------------
 // DocumentState — lifetime-managed wrapper around an open WordprocessingDocument

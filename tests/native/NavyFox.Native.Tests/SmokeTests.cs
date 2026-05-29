@@ -1,8 +1,8 @@
 using System.Text;
 using Xunit;
-using static DocxMint.Native.Tests.TestHelper;
+using static BlueFox.Native.Tests.TestHelper;
 
-namespace DocxMint.Native.Tests;
+namespace BlueFox.Native.Tests;
 
 /// <summary>
 /// Smoke tests for DocumentBuilder core logic via the generic property/collection API.
@@ -174,8 +174,8 @@ public sealed class SmokeTests
     {
         var doc = DocumentBuilder.CreateDocument();
         var para = Append(doc, "paragraph");
-        SetStr(para, "text", "Hello DocxMint");
-        Assert.Equal("Hello DocxMint", ReadStr(para, "text"));
+        SetStr(para, "text", "Hello NavyFox");
+        Assert.Equal("Hello NavyFox", ReadStr(para, "text"));
         DocumentBuilder.Dispose(doc);
     }
 

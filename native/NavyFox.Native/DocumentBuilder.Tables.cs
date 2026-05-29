@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace DocxMint.Native;
+namespace BlueFox.Native;
 
 internal static partial class DocumentBuilder
 {

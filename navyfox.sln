@@ -6,11 +6,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "native", "native", "{2F2BA0
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocxMint.Native", "native\DocxMint.Native\DocxMint.Native.csproj", "{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NavyFox.Native", "native\NavyFox.Native\NavyFox.Native.csproj", "{DD7C365A-5E93-58B8-64FB-AB24A9EF7F9E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "native", "native", "{5CAE2597-66F0-584A-32F0-7DDF4B01EDF4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocxMint.Native.Tests", "tests\native\DocxMint.Native.Tests\DocxMint.Native.Tests.csproj", "{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NavyFox.Native.Tests", "tests\native\NavyFox.Native.Tests\NavyFox.Native.Tests.csproj", "{721CB5B7-1BA5-F60C-DB3E-2A21A1E9E5BE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

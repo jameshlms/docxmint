@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace DocxMint.Native;
+namespace BlueFox.Native;
 
 public static unsafe class NativeExports
 {

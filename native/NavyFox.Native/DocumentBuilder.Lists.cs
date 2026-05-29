@@ -1,7 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace DocxMint.Native;
+namespace BlueFox.Native;
 
 internal static unsafe partial class DocumentBuilder
 {

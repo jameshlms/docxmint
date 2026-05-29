@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <AssemblyName>DocxMint.Native</AssemblyName>
-    <RootNamespace>DocxMint.Native</RootNamespace>
+    <AssemblyName>BlueFox.Native</AssemblyName>
+    <RootNamespace>BlueFox.Native</RootNamespace>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>DocxMint.Native.Tests</_Parameter1>
+      <_Parameter1>BlueFox.Native.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 
