@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 if TYPE_CHECKING:
-    from fastdocx._proxy.base import ProxyState
-    from fastdocx.document import Document
+    from docxmint._proxy.base import ElementState
+    from docxmint.document import Document
 
 
 class RawAttrMixin:
@@ -20,7 +20,7 @@ class RawAttrMixin:
     @overload
     def _getattr(self, name: Literal["_document"]) -> Document | None: ...
     @overload
-    def _getattr(self, name: Literal["_state"]) -> ProxyState: ...
+    def _getattr(self, name: Literal["_state"]) -> ElementState: ...
     @overload
     def _getattr(self, name: str) -> Any: ...
     def _getattr(self, name: str) -> Any:

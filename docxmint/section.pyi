@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from fastdocx._collection import DocumentView as DocumentView
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx.image import Image
-from fastdocx.paragraph import HorizontalRule, LineStyleArg, Paragraph
-from fastdocx.table import Table
+from docxmint._collection import DocumentView as DocumentView
+from docxmint._proxy.base import ProxyBase as _ProxyBase
+from docxmint.image import Image
+from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
+from docxmint.table import Table
 
 class Section(_ProxyBase):
     orientation: Literal["portrait", "landscape"]

@@ -10,20 +10,20 @@ import weakref
 from collections.abc import Iterable
 from typing import IO, TYPE_CHECKING, Any, Self, overload
 
-import fastdocx._native.handle as _handle_mod
-from fastdocx._block import BlockContainerMixin
-from fastdocx._collection import CollectionMixin
-from fastdocx._native.handle import Handle
-from fastdocx._proxy.base import ProxyBase
-from fastdocx.errors import DocumentClosedError
-from fastdocx.paragraph import Paragraph
-from fastdocx.table import Table
+import docxmint._native.handle as _handle_mod
+from docxmint._block import BlockContainerMixin
+from docxmint._collection import CollectionMixin
+from docxmint._native.handle import Handle
+from docxmint._proxy.base import ProxyBase
+from docxmint.errors import DocumentClosedError
+from docxmint.paragraph import Paragraph
+from docxmint.table import Table
 
 if TYPE_CHECKING:
-    from fastdocx._collection import DocumentView
-    from fastdocx.formats import PageMargins
-    from fastdocx.section import Section
-    from fastdocx.styles import StyleCollection
+    from docxmint._collection import DocumentView
+    from docxmint.formats import PageMargins
+    from docxmint.section import Section
+    from docxmint.styles import StyleCollection
 
 _PathArg = str | os.PathLike[str] | IO[bytes]
 
@@ -50,7 +50,7 @@ def _resolve_open_path(path: _PathArg) -> tuple[str, str | None]:
 
 
 def _type_name_map() -> dict[type, str]:
-    from fastdocx.section import Section
+    from docxmint.section import Section
 
     return {
         Paragraph: "paragraphs",
@@ -64,7 +64,7 @@ def _collection_for_type(t: type) -> str:
 
 
 class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
-    """A DOCX document backed by the FastDocx native library.
+    """A DOCX document backed by the DocxMint native library.
 
     The document is the body collection — iterate it, append to it, and access
     typed filtered views via ``.paragraphs``, ``.tables``, ``.sections``, etc.
@@ -100,7 +100,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     _tmp_path: str | None
     _io_edit: IO[bytes] | None
     _open: bool
-    _finalizer: weakref.finalize[[Handle, int, str | None], None]
+    _finalizer: weakref.finalize[[Handle, int, str | None], Any]
     _collection_name = "body"
 
     @staticmethod
@@ -132,7 +132,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     def _get_open(self) -> bool:
         return object.__getattribute__(self, "_open")
 
-    def _get_finalizer(self) -> weakref.finalize[[Handle, int, str | None], None]:
+    def _get_finalizer(self) -> weakref.finalize[[Handle, int, str | None], Any]:
         return object.__getattribute__(self, "_finalizer")
 
     def _set_lib(self, lib: Handle) -> None:
@@ -156,7 +156,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     def _set_open(self, open: bool) -> None:
         object.__setattr__(self, "_open", open)
 
-    def _set_finalizer(self, finalizer: weakref.finalize[[Handle, int, str | None], None]) -> None:
+    def _set_finalizer(self, finalizer: weakref.finalize[[Handle, int, str | None], Any]) -> None:
         object.__setattr__(self, "_finalizer", finalizer)
 
     def __init__(self) -> None:
@@ -265,8 +265,8 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def _elem_types(self) -> tuple[type, ...]:
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.table import Table
+        from docxmint.paragraph import Paragraph
+        from docxmint.table import Table
 
         return (Paragraph, Table)
 
@@ -374,7 +374,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def styles(self) -> StyleCollection:
-        from fastdocx.styles import StyleCollection
+        from docxmint.styles import StyleCollection
 
         return StyleCollection(self._require_open(), self)
 
@@ -428,7 +428,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def sections(self) -> DocumentView[Section]:
-        from fastdocx.section import Section
+        from docxmint.section import Section
 
         return self._block_view(Section, "sections")
 
@@ -438,14 +438,16 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def margins(self) -> PageMargins:
-        """Page margins for the document, read from the first section.
+        """Page margins for the document.
 
-        On get: returns a :class:`~fastdocx.formats.PageMargins` reflecting the
-        first section's margins, or the defaults if no sections exist.
+        On get: returns the shared :class:`~docxmint.formats.PageMargins` when all
+        sections have identical margins, or the defaults if no sections exist.
+        Raises :exc:`ValueError` if sections have differing margins — use
+        ``doc.sections[i].margin_*`` to read per-section values instead.
 
         On set: applies the given margins to **all** sections. Accepts:
 
-        - A :class:`~fastdocx.formats.PageMargins` instance.
+        - A :class:`~docxmint.formats.PageMargins` instance.
         - A single ``float`` — sets top, bottom, left, and right uniformly.
         - A 2-tuple ``(vertical, horizontal)`` — CSS-style shorthand.
         - A 4-tuple ``(top, bottom, left, right)``.
@@ -457,53 +459,70 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
                 doc.margins = (0.75, 1.0)             # 0.75 top/bottom, 1.0 left/right
                 doc.margins = PageMargins(left=0.5, right=0.5)
         """
-        from fastdocx.formats import PageMargins
+        from docxmint.formats import PageMargins
 
         secs = self.sections
         if len(secs) == 0:
             return PageMargins()
-        s = secs[0]
-        return PageMargins(
-            top=s.margin_top,
-            bottom=s.margin_bottom,
-            left=s.margin_left,
-            right=s.margin_right,
-            header=s.margin_header,
-            footer=s.margin_footer,
+        first = PageMargins(
+            top=secs[0].margin_top,
+            bottom=secs[0].margin_bottom,
+            left=secs[0].margin_left,
+            right=secs[0].margin_right,
+            header=secs[0].margin_header,
+            footer=secs[0].margin_footer,
         )
+        mismatch = any(
+            PageMargins(
+                top=s.margin_top,
+                bottom=s.margin_bottom,
+                left=s.margin_left,
+                right=s.margin_right,
+                header=s.margin_header,
+                footer=s.margin_footer,
+            )
+            != first
+            for s in secs[1:]
+        )
+
+        if mismatch:
+            raise ValueError(
+                "Sections have differing margins; cannot return a single value. Read margins from individual sections instead."
+            )
+
+        return first
 
     @margins.setter
     def margins(
         self,
         value: PageMargins | float | tuple[float, float] | tuple[float, float, float, float],
     ) -> None:
-        from fastdocx.formats import PageMargins
+        from docxmint.formats import PageMargins
 
-        if isinstance(value, (int, float)):
-            v = float(value)
-            pm = PageMargins(top=v, bottom=v, left=v, right=v)
-        elif isinstance(value, PageMargins):
-            pm = value
-        elif isinstance(value, tuple):  # type: ignore
-            if len(value) == 2:
-                vert, horiz = float(value[0]), float(value[1])
-                pm = PageMargins(top=vert, bottom=vert, left=horiz, right=horiz)
-            elif len(value) == 4:
+        match value:
+            case PageMargins():
+                pm = value
+
+            case float() | int():
+                v = float(value)
+                pm = PageMargins(top=v, bottom=v, left=v, right=v)
+
+            case (float() | int(), float() | int()):
+                v, h = float(value[0]), float(value[1])
+                pm = PageMargins(top=v, bottom=v, left=h, right=h)
+
+            case (float() | int(), float() | int(), float() | int(), float() | int()):
                 pm = PageMargins(
                     top=float(value[0]),
                     bottom=float(value[1]),
                     left=float(value[2]),
                     right=float(value[3]),
                 )
-            else:
-                raise ValueError(
-                    "margins tuple must have 2 elements (vertical, horizontal) "
-                    "or 4 elements (top, bottom, left, right)."
+            case _:
+                raise TypeError(
+                    f"margins must be a PageMargins, float, or tuple; got {type(value).__name__!r}"
                 )
-        else:
-            raise TypeError(
-                f"margins must be a PageMargins, float, or tuple; got {type(value).__name__!r}"
-            )
+
         for section in self.sections:
             section.margin_top = pm.top
             section.margin_bottom = pm.bottom
@@ -523,22 +542,22 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
             types: A list of proxy types to include (e.g. ``[Paragraph, Table]``).
 
         Returns:
-            A :class:`~fastdocx.collection.DocumentView` that yields only elements
+            A :class:`~docxmint.collection.DocumentView` that yields only elements
             whose type is in *types*.
 
         Example:
             .. code-block:: python
 
-                from fastdocx import Paragraph, Table
+                from docxmint import Paragraph, Table
                 for elem in doc.group([Paragraph, Table]):
                     print(type(elem).__name__, repr(elem))
         """
-        from fastdocx._collection import DocumentView
+        from docxmint._collection import DocumentView
 
         lib: Handle = self._get_lib()
         return DocumentView(
             self._require_open(),
-            self,
+            self,  # type: ignore[arg-type]  # Self@Document IS Document; Pyright can't resolve the circular stub
             lib,
             tuple(types),
             "body",
@@ -552,7 +571,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
         return bool(self._get_open())
 
     def __contains__(self, element: object) -> bool:
-        from fastdocx._proxy.base import ProxyBase
+        from docxmint._proxy.base import ProxyBase
 
         if not isinstance(element, ProxyBase):
             return False

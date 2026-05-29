@@ -1,9 +1,9 @@
 from collections.abc import Iterator
 from typing import Any, Literal, overload
 
-from fastdocx._collection import DocumentView as DocumentView
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx.paragraph import Paragraph
+from docxmint._collection import DocumentView as DocumentView
+from docxmint._proxy.base import ProxyBase as _ProxyBase
+from docxmint.paragraph import Paragraph
 
 class Cell(_ProxyBase):
     text: str

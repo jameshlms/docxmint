@@ -12,10 +12,48 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast, overload
 
-from fastdocx.units import normalize_color_input
+from docxmint.units import normalize_color_input
 
 if TYPE_CHECKING:
-    from fastdocx._proxy.base import ProxyBase
+    from docxmint._proxy.base import ProxyBase
+
+
+# ---------------------------------------------------------------------------
+# NullableStringProperty
+# ---------------------------------------------------------------------------
+
+
+class NullableStringProperty:
+    """String property that maps empty string → None on get; accepts None on set (stores as '')."""
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    @overload
+    def __get__(self, obj: None, objtype: type) -> NullableStringProperty: ...
+    @overload
+    def __get__(self, obj: ProxyBase, objtype: type) -> str | None: ...
+
+    def __get__(
+        self, obj: ProxyBase | None, objtype: type | None = None
+    ) -> str | None | NullableStringProperty:
+        if obj is None:
+            return self
+        if object.__getattribute__(obj, "_native") is not None:
+            obj._check_valid()
+            val = obj._get_lib().get_str(object.__getattribute__(obj, "_native"), self._name)
+            return val or None
+        data: dict[str, Any] = object.__getattribute__(obj, "_data")
+        return data.get(self._name) or None
+
+    def __set__(self, obj: ProxyBase, value: str | None) -> None:
+        normalized = value or ""
+        native = object.__getattribute__(obj, "_native")
+        if native is not None:
+            obj._check_valid()
+            obj._get_lib().set_str(native, self._name, normalized)
+        else:
+            object.__getattribute__(obj, "_data")[self._name] = normalized
 
 
 # ---------------------------------------------------------------------------
@@ -204,9 +242,9 @@ class ChoiceProperty[L: str]:
         if object.__getattribute__(obj, "_native") is not None:
             obj._check_valid()
             val = obj._get_lib().get_str(object.__getattribute__(obj, "_native"), self._name)
-            return val or self._default  # type: ignore[return-value]
+            return cast(L, val or self._default)
         data: dict[str, Any] = object.__getattribute__(obj, "_data")
-        return data.get(self._name, self._default)
+        return cast(L | None, data.get(self._name, self._default))
 
     def __set__(self, obj: ProxyBase, value: bool | str | None) -> None:
         if self._allow_bool:

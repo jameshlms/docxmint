@@ -1,4 +1,4 @@
-"""FastDocx — Pythonic ``.docx`` manipulation backed by a C# Native AOT library.
+"""DocxMint — Pythonic ``.docx`` manipulation backed by a C# Native AOT library.
 
 All document data lives in the C# layer; Python holds lightweight proxy objects
 (handles). The central types are:
@@ -13,17 +13,17 @@ Use :func:`snapshot` to capture a document-independent copy of any proxy element
 so it can be used after the document is closed.
 """
 
-from fastdocx._collection import DocumentView
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx.document import Document
-from fastdocx.errors import (
+from docxmint._collection import DocumentView
+from docxmint._proxy.base import ProxyBase as _ProxyBase
+from docxmint.document import Document
+from docxmint.errors import (
     DocumentClosedError,
-    FastDocxError,
+    DocxMintError,
     NativeRuntimeError,
     OwnershipError,
     StaleProxyError,
 )
-from fastdocx.formats import (
+from docxmint.formats import (
     Border,
     CellBorders,
     CellMargin,
@@ -37,13 +37,13 @@ from fastdocx.formats import (
     SpacingFormat,
     TableBorders,
 )
-from fastdocx.hyperlink import Hyperlink
-from fastdocx.image import Image
-from fastdocx.paragraph import HorizontalRule, Paragraph
-from fastdocx.run import Run
-from fastdocx.section import Section
-from fastdocx.styles import Style, StyleCollection
-from fastdocx.table import Cell, Row, Table
+from docxmint.hyperlink import Hyperlink
+from docxmint.image import Image
+from docxmint.paragraph import HorizontalRule, Paragraph
+from docxmint.run import Run
+from docxmint.section import Section
+from docxmint.styles import Style, StyleCollection
+from docxmint.table import Cell, Row, Table
 
 
 def snapshot[T: _ProxyBase](elem: T) -> T:
@@ -105,7 +105,7 @@ __all__ = [
     "CellMargin",
     "ColumnFormat",
     # Errors
-    "FastDocxError",
+    "DocxMintError",
     "NativeRuntimeError",
     "DocumentClosedError",
     "StaleProxyError",

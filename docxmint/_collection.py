@@ -10,8 +10,8 @@ import warnings
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Self, overload
 
-from fastdocx._proxy.base import ProxyBase
-from fastdocx.errors import NativeRuntimeError, OwnershipError
+from docxmint._proxy.base import ProxyBase
+from docxmint.errors import NativeRuntimeError, OwnershipError
 
 type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 
@@ -21,8 +21,8 @@ def _to_elem_tuple[T: ProxyBase](arg: ElemTypesArg[T]) -> tuple[type[T], ...]:
 
 
 if TYPE_CHECKING:
-    from fastdocx._native.handle import Handle
-    from fastdocx.document import Document
+    from docxmint._native.handle import Handle
+    from docxmint.document import Document
 
 
 class CollectionMixin[T: ProxyBase]:
@@ -89,8 +89,8 @@ class CollectionMixin[T: ProxyBase]:
     _EMU_PER_INCH = 914400
 
     def _append_one(self, element: T) -> T:
-        from fastdocx.image import Image
-        from fastdocx.table import Table
+        from docxmint.image import Image
+        from docxmint.table import Table
 
         self._validate_element(element)
         native = object.__getattribute__(element, "_native")
@@ -234,7 +234,7 @@ class CollectionMixin[T: ProxyBase]:
         """Remove *element* from the collection and mark it stale.
 
         After removal, any attempt to access *element*'s properties raises
-        :exc:`~fastdocx.errors.StaleProxyError`. Call ``snapshot()`` before
+        :exc:`~docxmint.errors.StaleProxyError`. Call ``snapshot()`` before
         removing if you need to keep the data.
 
         Args:
@@ -346,8 +346,8 @@ class DocumentView[T: ProxyBase](CollectionMixin[T]):
     name. All reads and mutations go directly to the native layer — nothing is
     cached in Python.
 
-    Obtained via collection properties on :class:`~fastdocx.document.Document`,
-    :class:`~fastdocx.paragraph.Paragraph`, :class:`~fastdocx.table.Table`, etc.:
+    Obtained via collection properties on :class:`~docxmint.document.Document`,
+    :class:`~docxmint.paragraph.Paragraph`, :class:`~docxmint.table.Table`, etc.:
 
     .. code-block:: python
 

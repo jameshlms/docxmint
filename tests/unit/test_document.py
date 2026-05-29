@@ -1,4 +1,4 @@
-"""Unit tests for the fastdocx proxy model, DocumentView, and Document.
+"""Unit tests for the docxmint proxy model, DocumentView, and Document.
 
 The native binary is mocked at the Handle level — no compiled C# needed.
 """
@@ -17,8 +17,8 @@ from tests.unit.mock_handle import MockHandle
 def _make_doc(mock: MockHandle | None = None):
     if mock is None:
         mock = MockHandle()
-    with patch("fastdocx._native.handle.get_handle", return_value=mock):
-        from fastdocx.document import Document
+    with patch("docxmint._native.handle.get_handle", return_value=mock):
+        from docxmint.document import Document
         doc = Document()
     return doc, mock
 
@@ -49,14 +49,14 @@ class TestDocumentConstruction:
 
     def test_context_manager_closes_on_exit(self):
         mock = MockHandle()
-        with patch("fastdocx._native.handle.get_handle", return_value=mock):
-            from fastdocx.document import Document
+        with patch("docxmint._native.handle.get_handle", return_value=mock):
+            from docxmint.document import Document
             with Document() as doc:
                 pass
         assert doc.is_open is False
 
     def test_require_open_raises_after_close(self):
-        from fastdocx.errors import DocumentClosedError
+        from docxmint.errors import DocumentClosedError
         doc, _ = _make_doc()
         doc.close()
         with pytest.raises(DocumentClosedError):
@@ -65,8 +65,8 @@ class TestDocumentConstruction:
     def test_document_open_classmethod(self):
         mock = MockHandle()
         mock.open_document = lambda path: mock.create_document()
-        with patch("fastdocx._native.handle.get_handle", return_value=mock):
-            from fastdocx.document import Document
+        with patch("docxmint._native.handle.get_handle", return_value=mock):
+            from docxmint.document import Document
             doc = Document.open("test.docx")
         assert doc.is_open
 
@@ -81,20 +81,20 @@ class TestDocumentAsCollection:
         assert len(doc) == 0
 
     def test_append_paragraph(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("Hello"))
         assert len(doc) == 1
 
     def test_append_sets_text(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("Hello"))
         para = doc.paragraphs[0]
         assert para.text == "Hello"
 
     def test_iter_yields_paragraphs(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("First"))
         doc.paragraphs.append(Paragraph("Second"))
@@ -102,7 +102,7 @@ class TestDocumentAsCollection:
         assert texts == ["First", "Second"]
 
     def test_paragraphs_first_last(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("First"))
         doc.paragraphs.append(Paragraph("Last"))
@@ -114,8 +114,8 @@ class TestDocumentAsCollection:
         assert doc.paragraphs.first is None
 
     def test_remove_marks_proxy_stale(self):
-        from fastdocx.errors import StaleProxyError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import StaleProxyError
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("Temp"))
         para = doc.paragraphs[0]
@@ -124,7 +124,7 @@ class TestDocumentAsCollection:
             _ = para.text
 
     def test_pop_removes_and_returns(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -133,28 +133,28 @@ class TestDocumentAsCollection:
         assert len(doc.paragraphs) == 1
 
     def test_append_table(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, mock = _make_doc()
         doc.tables.append(Table(rows=2, cols=3))
         assert len(doc.tables) == 1
 
     def test_type_error_on_wrong_type_in_filtered_view(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, _ = _make_doc()
         with pytest.raises(TypeError, match="DocumentView"):
             doc.paragraphs.append(Table(rows=1, cols=1))  # type: ignore
 
     def test_getitem_by_type_returns_filtered_view(self):
-        from fastdocx import DocumentView
-        from fastdocx.paragraph import Paragraph
+        from docxmint import DocumentView
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         view = doc[Paragraph]
         assert isinstance(view, DocumentView)
 
     def test_group_two_types(self):
-        from fastdocx import DocumentView
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.table import Table
+        from docxmint import DocumentView
+        from docxmint.paragraph import Paragraph
+        from docxmint.table import Table
         doc, _ = _make_doc()
         view = doc.group([Paragraph, Table])
         assert isinstance(view, DocumentView)
@@ -166,7 +166,7 @@ class TestDocumentAsCollection:
 
 class TestParagraphProxy:
     def test_text_roundtrip_live(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("hello"))
         para = doc.paragraphs[0]
@@ -175,7 +175,7 @@ class TestParagraphProxy:
         assert para.text == "world"
 
     def test_style_roundtrip_live(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("hi", style="Heading1"))
         para = doc.paragraphs[0]
@@ -184,7 +184,7 @@ class TestParagraphProxy:
         assert para.style == "Normal"
 
     def test_alignment_roundtrip_live(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("hi", alignment="center"))
         para = doc.paragraphs[0]
@@ -193,7 +193,7 @@ class TestParagraphProxy:
         assert para.alignment == "right"
 
     def test_alignment_rejects_invalid(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("hi"))
         para = doc.paragraphs[0]
@@ -201,14 +201,14 @@ class TestParagraphProxy:
             para.alignment = "diagonal"  # type: ignore
 
     def test_spec_reads_from_data(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph("spec text", style="Heading2")
         assert para.text == "spec text"
         assert para.style == "Heading2"
         assert not para._is_live
 
     def test_copy_returns_snapshot(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("snapshot me"))
         para = doc.paragraphs[0]
@@ -218,8 +218,8 @@ class TestParagraphProxy:
         assert snap.text == "snapshot me"
 
     def test_document_closed_raises_on_access(self):
-        from fastdocx.errors import DocumentClosedError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import DocumentClosedError
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("bye"))
         para = doc.paragraphs[0]
@@ -228,8 +228,8 @@ class TestParagraphProxy:
             _ = para.text
 
     def test_stale_proxy_raises_on_access(self):
-        from fastdocx.errors import StaleProxyError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import StaleProxyError
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("gone"))
         para = doc.paragraphs[0]
@@ -238,7 +238,7 @@ class TestParagraphProxy:
             _ = para.text
 
     def test_unknown_attribute_raises(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("x"))
         para = doc.paragraphs[0]
@@ -252,21 +252,21 @@ class TestParagraphProxy:
 
 class TestParagraphSpacing:
     def test_defaults_in_construction(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         assert para.space_before == 0.0
         assert para.space_after == 0.0
         assert para.line_spacing == 1.0
 
     def test_constructor_kwargs(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph("x", space_before=6.0, space_after=3.0, line_spacing=1.5)
         assert para.space_before == 6.0
         assert para.space_after == 3.0
         assert para.line_spacing == 1.5
 
     def test_construction_writable(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         para.space_before = 12.0
         para.space_after = 6.0
@@ -276,7 +276,7 @@ class TestParagraphSpacing:
         assert para.line_spacing == 2.0
 
     def test_round_trip_through_document(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("x", space_before=6.0, space_after=3.0, line_spacing=1.5)
         doc.paragraphs.append(para)
@@ -285,7 +285,7 @@ class TestParagraphSpacing:
         assert abs(para.line_spacing - 1.5) < 1e-9
 
     def test_live_setters(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph())
         para = doc.paragraphs[0]
@@ -297,7 +297,7 @@ class TestParagraphSpacing:
         assert abs(para.line_spacing - 1.15) < 1e-9
 
     def test_spacing_preserved_in_snapshot(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("y", space_before=6.0, space_after=3.0))
         snap = doc.paragraphs[0].copy()
@@ -305,7 +305,7 @@ class TestParagraphSpacing:
         assert abs(snap.space_after - 3.0) < 1e-9
 
     def test_spacing_in_copy_data_live(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("z", line_spacing=1.5))
         data = doc.paragraphs[0]._copy_data()
@@ -319,21 +319,21 @@ class TestParagraphSpacing:
 
 class TestParagraphIndentation:
     def test_defaults_in_construction(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         assert para.indent_left == 0.0
         assert para.indent_right == 0.0
         assert para.indent_hanging == 0.0
 
     def test_constructor_kwargs(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph("x", indent_left=0.5, indent_right=0.25, indent_hanging=0.25)
         assert para.indent_left == 0.5
         assert para.indent_right == 0.25
         assert para.indent_hanging == 0.25
 
     def test_construction_writable(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         para.indent_left = 1.0
         para.indent_right = 0.5
@@ -343,7 +343,7 @@ class TestParagraphIndentation:
         assert para.indent_hanging == 0.5
 
     def test_round_trip_through_document(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("x", indent_left=0.5, indent_right=0.25, indent_hanging=0.25)
         doc.paragraphs.append(para)
@@ -352,7 +352,7 @@ class TestParagraphIndentation:
         assert abs(para.indent_hanging - 0.25) < 1e-9
 
     def test_live_setters(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph())
         para = doc.paragraphs[0]
@@ -364,7 +364,7 @@ class TestParagraphIndentation:
         assert abs(para.indent_hanging - 0.25) < 1e-9
 
     def test_indentation_preserved_in_snapshot(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("y", indent_left=0.5, indent_hanging=0.25))
         snap = doc.paragraphs[0].copy()
@@ -372,7 +372,7 @@ class TestParagraphIndentation:
         assert abs(snap.indent_hanging - 0.25) < 1e-9
 
     def test_indentation_in_copy_data_live(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("z", indent_left=1.0))
         data = doc.paragraphs[0]._copy_data()
@@ -387,29 +387,29 @@ class TestParagraphIndentation:
 
 class TestConstructionRuns:
     def test_text_derives_from_runs_in_construction(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph("hello")
         assert para.text == "hello"
 
     def test_empty_para_has_empty_text(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         assert para.text == ""
 
     def test_runs_not_empty_when_text_given(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph("hello")
         assert len(para.runs) == 1
         assert para.runs[0].text == "hello"
 
     def test_runs_empty_when_no_text(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         assert len(para.runs) == 0
 
     def test_append_run_in_construction(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         para = Paragraph()
         para.runs.append(Run("world", bold=True))
         assert len(para.runs) == 1
@@ -417,23 +417,23 @@ class TestConstructionRuns:
         assert para.runs[0].bold is True
 
     def test_text_concatenates_multiple_construction_runs(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         para = Paragraph()
         para.runs.append(Run("Hello "))
         para.runs.append(Run("world"))
         assert para.text == "Hello world"
 
     def test_add_run_works_in_construction(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         run = para.add_run("hello")
         assert len(para.runs) == 1
         assert run.text == "hello"
 
     def test_text_setter_replaces_runs_in_construction(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         para = Paragraph()
         para.runs.append(Run("old"))
         para.text = "new"
@@ -441,8 +441,8 @@ class TestConstructionRuns:
         assert para.text == "new"
 
     def test_construction_runs_survive_round_trip_through_document(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, _ = _make_doc()
         para = Paragraph()
         para.runs.append(Run("Hello ", bold=True))
@@ -452,8 +452,8 @@ class TestConstructionRuns:
         assert len(para.runs) == 2
 
     def test_construction_run_formatting_survives_materialisation(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, _ = _make_doc()
         para = Paragraph()
         para.runs.append(Run("bold", bold=True))
@@ -461,15 +461,15 @@ class TestConstructionRuns:
         assert para.runs[0].bold is True
 
     def test_construction_runs_reject_wrong_type(self):
-        from fastdocx.image import Image
-        from fastdocx.paragraph import Paragraph
+        from docxmint.image import Image
+        from docxmint.paragraph import Paragraph
         para = Paragraph()
         with pytest.raises(TypeError):
             para.runs.append(Image(data=b"\x89PNG\r\n\x1a\n" + b"\x00" * 56))  # type: ignore
 
     def test_stale_para_text_raises(self):
-        from fastdocx.errors import StaleProxyError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import StaleProxyError
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("bye"))
         para = doc.paragraphs[0]
@@ -478,8 +478,8 @@ class TestConstructionRuns:
             _ = para.text
 
     def test_snapshot_preserves_construction_runs(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         para = Paragraph()
         para.runs.append(Run("A", bold=True))
         para.runs.append(Run("B"))
@@ -488,8 +488,8 @@ class TestConstructionRuns:
         assert len(snap.runs) == 2
 
     def test_snapshot_can_be_appended_with_runs(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, _ = _make_doc()
         para = Paragraph()
         para.runs.append(Run("snap", italic=True))
@@ -505,8 +505,8 @@ class TestConstructionRuns:
 
 class TestRunProxy:
     def _para_with_run(self, text: str = "hello", **run_kwargs):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph())
         para = doc.paragraphs[0]
@@ -539,9 +539,9 @@ class TestRunProxy:
         assert run.font_name == "Arial"
 
     def test_color_roundtrip(self):
-        from fastdocx.run import Run
+        from docxmint.run import Run
         doc, _ = _make_doc()
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc.paragraphs.append(Paragraph())
         para = doc.paragraphs[0]
         para.runs.append(Run("x"))
@@ -551,17 +551,17 @@ class TestRunProxy:
         assert run.color in ("#FF0000", "FF0000")
 
     def test_mutex_all_caps_small_caps(self):
-        from fastdocx.run import Run
+        from docxmint.run import Run
         with pytest.raises(ValueError, match="mutually exclusive"):
             Run("x", all_caps=True, small_caps=True)
 
     def test_mutex_superscript_subscript(self):
-        from fastdocx.run import Run
+        from docxmint.run import Run
         with pytest.raises(ValueError, match="mutually exclusive"):
             Run("x", superscript=True, subscript=True)
 
     def test_copy_returns_snapshot(self):
-        from fastdocx.run import Run
+        from docxmint.run import Run
         run, _ = self._para_with_run("copy me", bold=True)
         snap = run.copy()
         assert isinstance(snap, Run)
@@ -570,15 +570,15 @@ class TestRunProxy:
         assert snap.bold is True
 
     def test_stale_run_raises(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.errors import StaleProxyError
+        from docxmint._proxy.base import ElementState
+        from docxmint.errors import StaleProxyError
         run, _ = self._para_with_run("temp")
-        object.__setattr__(run, "_state", ProxyState.STALE)
+        object.__setattr__(run, "_state", ElementState.STALE)
         with pytest.raises(StaleProxyError, match=r"snapshot\(\)"):
             _ = run.text
 
     def test_spec_run_has_correct_data(self):
-        from fastdocx.run import Run
+        from docxmint.run import Run
         run = Run("spec", bold=True, italic=False)
         assert run.text == "spec"
         assert run.bold is True
@@ -591,7 +591,7 @@ class TestRunProxy:
 
 class TestTableProxy:
     def test_table_append_and_access(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, mock = _make_doc()
         doc.tables.append(Table(rows=2, cols=3))
         assert len(doc.tables) == 1
@@ -599,14 +599,14 @@ class TestTableProxy:
         assert isinstance(table, Table)
 
     def test_table_rows_count(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, mock = _make_doc()
         doc.tables.append(Table(rows=3, cols=2))
         table = doc.tables[0]
         assert len(table.rows) == 3
 
     def test_table_cell_access(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, mock = _make_doc()
         doc.tables.append(Table(rows=2, cols=2))
         table = doc.tables[0]
@@ -615,7 +615,7 @@ class TestTableProxy:
         assert table.cell(0, 0).text == "R0C0"
 
     def test_table_getitem_tuple(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, _ = _make_doc()
         doc.tables.append(Table(rows=2, cols=2))
         table = doc.tables[0]
@@ -629,8 +629,8 @@ class TestTableProxy:
 
 class TestDocumentView:
     def test_slice_returns_view(self):
-        from fastdocx import DocumentView
-        from fastdocx.paragraph import Paragraph
+        from docxmint import DocumentView
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         for i in range(4):
             doc.paragraphs.append(Paragraph(f"Para {i}"))
@@ -643,31 +643,31 @@ class TestDocumentView:
         assert not doc.paragraphs
 
     def test_bool_true_when_not_empty(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("x"))
         assert doc.paragraphs
 
     def test_iadd_extends(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs += [Paragraph("A"), Paragraph("B")]
         assert len(doc.paragraphs) == 2
 
     def test_contains_true_for_live_element(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("x"))
         para = doc.paragraphs[0]
         assert para in doc.paragraphs
 
     def test_contains_false_for_spec(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         assert Paragraph("x") not in doc.paragraphs
 
     def test_reversed_order(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -691,7 +691,7 @@ class TestDocumentSave:
             doc.save()
 
     def test_save_after_close_raises(self):
-        from fastdocx.errors import DocumentClosedError
+        from docxmint.errors import DocumentClosedError
         doc, _ = _make_doc()
         doc.close()
         with pytest.raises(DocumentClosedError):
@@ -704,28 +704,28 @@ class TestDocumentSave:
 
 class TestProxyLifecycle:
     def test_proxy_is_construction_before_append(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
         para = Paragraph("hello")
-        assert para.state is ProxyState.CONSTRUCTION
+        assert para.state is ElementState.CONSTRUCTION
 
     def test_proxy_is_live_after_append(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("hello")
         doc.paragraphs.append(para)
-        assert para.state is ProxyState.LIVE
+        assert para.state is ElementState.LIVE
 
     def test_append_returns_same_object(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("hello")
         returned = doc.paragraphs._append_one(para)
         assert returned is para
 
     def test_post_append_mutation_reflects_in_document(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("original")
         doc.paragraphs.append(para)
@@ -733,7 +733,7 @@ class TestProxyLifecycle:
         assert doc.paragraphs[0].text == "mutated"
 
     def test_double_append_raises(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("hello")
         doc.paragraphs.append(para)
@@ -741,8 +741,8 @@ class TestProxyLifecycle:
             doc.paragraphs.append(para)
 
     def test_append_live_proxy_to_different_doc_raises_ownership_error(self):
-        from fastdocx.errors import OwnershipError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import OwnershipError
+        from docxmint.paragraph import Paragraph
         doc1, _ = _make_doc()
         doc2, _ = _make_doc()
         para = Paragraph("hello")
@@ -751,37 +751,37 @@ class TestProxyLifecycle:
             doc2.paragraphs.append(para)
 
     def test_extend_transitions_all_to_live(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         p1, p2 = Paragraph("A"), Paragraph("B")
         doc.paragraphs.extend([p1, p2])
-        assert p1.state is ProxyState.LIVE
-        assert p2.state is ProxyState.LIVE
+        assert p1.state is ElementState.LIVE
+        assert p2.state is ElementState.LIVE
 
     def test_iadd_transitions_all_to_live(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         p1, p2 = Paragraph("A"), Paragraph("B")
         doc.paragraphs += [p1, p2]
-        assert p1.state is ProxyState.LIVE
-        assert p2.state is ProxyState.LIVE
+        assert p1.state is ElementState.LIVE
+        assert p2.state is ElementState.LIVE
 
     def test_snapshot_can_be_appended_and_becomes_live(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("original"))
         snap = doc.paragraphs[0].copy()
-        assert snap.state is ProxyState.SNAPSHOT
+        assert snap.state is ElementState.SNAPSHOT
         doc2, _ = _make_doc()
         doc2.paragraphs.append(snap)
-        assert snap.state is ProxyState.LIVE
+        assert snap.state is ElementState.LIVE
 
     def test_copy_of_spec_appended_independently(self):
         """copy() creates a fresh CONSTRUCTION proxy that can be appended separately."""
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         template = Paragraph("template")
         doc.paragraphs.append(template.copy())
@@ -790,15 +790,15 @@ class TestProxyLifecycle:
         assert template.is_construction  # original spec untouched
 
     def test_table_transitions_to_live_after_append(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.table import Table
+        from docxmint._proxy.base import ElementState
+        from docxmint.table import Table
         doc, _ = _make_doc()
         tbl = Table(rows=2, cols=2)
         doc.tables.append(tbl)
-        assert tbl.state is ProxyState.LIVE
+        assert tbl.state is ElementState.LIVE
 
     def test_table_double_append_raises(self):
-        from fastdocx.table import Table
+        from docxmint.table import Table
         doc, _ = _make_doc()
         tbl = Table(rows=2, cols=2)
         doc.tables.append(tbl)
@@ -807,8 +807,8 @@ class TestProxyLifecycle:
 
     def test_closed_doc_raises_document_closed_not_stale(self):
         """Accessing a LIVE proxy after its doc closes raises DocumentClosedError, not StaleProxyError."""
-        from fastdocx.errors import DocumentClosedError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import DocumentClosedError
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         para = Paragraph("bye")
         doc.paragraphs.append(para)
@@ -820,11 +820,11 @@ class TestProxyLifecycle:
 
     def test_para_accessed_after_context_manager_raises_document_closed(self):
         """Paragraph appended inside a context manager; reference held outside raises DocumentClosedError."""
-        from fastdocx.errors import DocumentClosedError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import DocumentClosedError
+        from docxmint.paragraph import Paragraph
         mock = MockHandle()
-        with patch("fastdocx._native.handle.get_handle", return_value=mock):
-            from fastdocx.document import Document
+        with patch("docxmint._native.handle.get_handle", return_value=mock):
+            from docxmint.document import Document
             para = Paragraph("inside")
             with Document() as doc:
                 doc.paragraphs.append(para)
@@ -832,18 +832,18 @@ class TestProxyLifecycle:
             _ = para.text
 
     def test_run_transitions_to_live_after_append(self):
-        from fastdocx._proxy.base import ProxyState
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint._proxy.base import ElementState
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph())
         run = Run("hello", bold=True)
         doc.paragraphs[0].runs.append(run)
-        assert run.state is ProxyState.LIVE
+        assert run.state is ElementState.LIVE
 
     def test_post_append_run_mutation_reflects_in_document(self):
-        from fastdocx.paragraph import Paragraph
-        from fastdocx.run import Run
+        from docxmint.paragraph import Paragraph
+        from docxmint.run import Run
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph())
         run = Run("original")
@@ -858,7 +858,7 @@ class TestProxyLifecycle:
 
 class TestCollectionEdgeCases:
     def test_getitem_negative_index(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -866,14 +866,14 @@ class TestCollectionEdgeCases:
         assert doc.paragraphs[-2].text == "A"
 
     def test_getitem_out_of_range_raises(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         with pytest.raises(IndexError):
             _ = doc.paragraphs[5]
 
     def test_clear_empties_collection(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -881,7 +881,7 @@ class TestCollectionEdgeCases:
         assert len(doc.paragraphs) == 0
 
     def test_index_returns_correct_position(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -889,7 +889,7 @@ class TestCollectionEdgeCases:
         assert doc.paragraphs.index(para) == 1
 
     def test_index_raises_for_unknown_element(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         other = doc.paragraphs[0].copy()
@@ -897,7 +897,7 @@ class TestCollectionEdgeCases:
             doc.paragraphs.index(other)  # type: ignore
 
     def test_pop_with_explicit_index(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         doc.paragraphs.append(Paragraph("B"))
@@ -907,21 +907,21 @@ class TestCollectionEdgeCases:
         assert len(doc.paragraphs) == 2
 
     def test_pop_out_of_range_raises(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("A"))
         with pytest.raises(IndexError):
             doc.paragraphs.pop(5)
 
     def test_remove_construction_proxy_raises(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         spec = Paragraph("never appended")
         with pytest.raises(ValueError, match="not in a document"):
             doc.paragraphs.remove(spec)  # type: ignore
 
     def test_contains_false_after_remove(self):
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
         doc, _ = _make_doc()
         doc.paragraphs.append(Paragraph("x"))
         para = doc.paragraphs[0]
@@ -935,31 +935,31 @@ class TestCollectionEdgeCases:
 
 class TestNativeRuntimeError:
     def test_create_document_failure_propagates(self):
-        from fastdocx.document import Document
-        from fastdocx.errors import NativeRuntimeError
+        from docxmint.document import Document
+        from docxmint.errors import NativeRuntimeError
         mock = MockHandle()
         mock.inject_error("create_document", NativeRuntimeError("create_document returned null handle"))
-        with patch("fastdocx._native.handle.get_handle", return_value=mock), pytest.raises(NativeRuntimeError, match="create_document"):
+        with patch("docxmint._native.handle.get_handle", return_value=mock), pytest.raises(NativeRuntimeError, match="create_document"):
             Document()
 
     def test_save_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
+        from docxmint.errors import NativeRuntimeError
         doc, mock = _make_doc()
         mock.inject_error("save_document", NativeRuntimeError("save_document failed"))
         with pytest.raises(NativeRuntimeError, match="save_document"):
             doc.save("/tmp/out.docx")
 
     def test_append_child_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import NativeRuntimeError
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         mock.inject_error("append_child", NativeRuntimeError("append_child failed"))
         with pytest.raises(NativeRuntimeError, match="append_child"):
             doc.paragraphs.append(Paragraph("x"))
 
     def test_remove_child_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import NativeRuntimeError
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("x"))
         para = doc.paragraphs[0]
@@ -968,8 +968,8 @@ class TestNativeRuntimeError:
             doc.paragraphs.remove(para)
 
     def test_set_str_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import NativeRuntimeError
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("hello"))
         para = doc.paragraphs[0]
@@ -978,8 +978,8 @@ class TestNativeRuntimeError:
             para.text = "new text"
 
     def test_set_int_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import NativeRuntimeError
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("hello"))
         para = doc.paragraphs[0]
@@ -988,8 +988,8 @@ class TestNativeRuntimeError:
             para.keep_together = True
 
     def test_get_count_failure_propagates(self):
-        from fastdocx.errors import NativeRuntimeError
-        from fastdocx.paragraph import Paragraph
+        from docxmint.errors import NativeRuntimeError
+        from docxmint.paragraph import Paragraph
         doc, mock = _make_doc()
         doc.paragraphs.append(Paragraph("hello"))
         mock.inject_error("get_count", NativeRuntimeError("get_count failed"))
@@ -997,7 +997,7 @@ class TestNativeRuntimeError:
             len(doc.paragraphs)
 
     def test_error_cleared_after_clear_error(self):
-        from fastdocx.errors import NativeRuntimeError
+        from docxmint.errors import NativeRuntimeError
         doc, mock = _make_doc()
         mock.inject_error("save_document", NativeRuntimeError("save_document failed"))
         with pytest.raises(NativeRuntimeError):

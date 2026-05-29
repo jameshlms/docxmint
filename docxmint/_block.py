@@ -9,17 +9,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
+from docxmint._proxy.base import ProxyBase
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fastdocx._collection import DocumentView
-    from fastdocx._native.handle import Handle
-    from fastdocx.document import Document
-    from fastdocx.image import Image
-    from fastdocx.paragraph import HorizontalRule, LineStyleArg, Paragraph
-    from fastdocx.table import Table
+    from docxmint._collection import DocumentView
+    from docxmint._native.handle import Handle
+    from docxmint.document import Document
+    from docxmint.image import Image
+    from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
+    from docxmint.table import Table
 
 
 type BlockCtx = tuple[int, Handle, Document]
@@ -28,14 +28,14 @@ type BlockCtx = tuple[int, Handle, Document]
 class BlockContainerMixin:
     """Mixin that adds ``paragraphs``, ``tables``, and ``add_*`` convenience helpers.
 
-    Applied to :class:`~fastdocx.document.Document` and :class:`~fastdocx.table.Cell`.
+    Applied to :class:`~docxmint.document.Document` and :class:`~docxmint.table.Cell`.
     Concrete classes implement :meth:`_block_context`; everything else is derived
     from that single hook.
 
     Provides:
 
-    - ``paragraphs`` — live :class:`~fastdocx.collection.DocumentView` of paragraphs
-    - ``tables`` — live :class:`~fastdocx.collection.DocumentView` of tables
+    - ``paragraphs`` — live :class:`~docxmint.collection.DocumentView` of paragraphs
+    - ``tables`` — live :class:`~docxmint.collection.DocumentView` of tables
     - :meth:`add_paragraph` — create and append a paragraph in one call
     - :meth:`add_heading` — create and append a heading paragraph in one call
     - :meth:`add_table` — create and append a table in one call
@@ -46,12 +46,12 @@ class BlockContainerMixin:
         """Return ``(handle, lib, document)`` for collection access, or ``None`` when not live."""
         raise NotImplementedError(f"{type(self).__name__} must implement _block_context()")
 
-    def _block_view[T: _ProxyBase](
+    def _block_view[T: ProxyBase](
         self,
         elem_type: type[T],
         collection: str,
     ) -> DocumentView[T]:
-        from fastdocx._collection import DocumentView
+        from docxmint._collection import DocumentView
 
         ctx = self._block_context()
         if ctx is None:
@@ -59,12 +59,12 @@ class BlockContainerMixin:
         handle, lib, document = ctx
         return DocumentView(handle, document, lib, elem_type, collection)
 
-    def _block_append[T: _ProxyBase](self, element: T) -> T:
+    def _block_append[T: ProxyBase](self, element: T) -> T:
         ctx = self._block_context()
         if ctx is None:
             raise ValueError(f"Cannot add content to a {type(self).__name__} that is not live.")
         handle, lib, document = ctx
-        from fastdocx._collection import DocumentView
+        from docxmint._collection import DocumentView
 
         view = DocumentView(handle, document, lib, type(element), "body")
         return view._append_one(element)
@@ -75,7 +75,7 @@ class BlockContainerMixin:
 
     @property
     def paragraphs(self) -> DocumentView[Paragraph]:
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         return self._block_view(Paragraph, "paragraphs")
 
@@ -85,7 +85,7 @@ class BlockContainerMixin:
 
     @property
     def tables(self) -> DocumentView[Table]:
-        from fastdocx.table import Table
+        from docxmint.table import Table
 
         return self._block_view(Table, "tables")
 
@@ -105,9 +105,9 @@ class BlockContainerMixin:
             style: Paragraph style name. Defaults to ``"Normal"``.
 
         Returns:
-            A live :class:`~fastdocx.paragraph.Paragraph` proxy.
+            A live :class:`~docxmint.paragraph.Paragraph` proxy.
         """
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=style))
 
@@ -121,9 +121,9 @@ class BlockContainerMixin:
             level: Heading level (1–9). Defaults to ``1``.
 
         Returns:
-            A live :class:`~fastdocx.paragraph.Paragraph` proxy styled as a heading.
+            A live :class:`~docxmint.paragraph.Paragraph` proxy styled as a heading.
         """
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=f"Heading{level}"))
 
@@ -136,9 +136,9 @@ class BlockContainerMixin:
             style: Table style name. Defaults to ``"TableGrid"``.
 
         Returns:
-            A live :class:`~fastdocx.table.Table` proxy.
+            A live :class:`~docxmint.table.Table` proxy.
         """
-        from fastdocx.table import Table
+        from docxmint.table import Table
 
         return self._block_append(Table(rows, cols, style=style))
 
@@ -158,9 +158,9 @@ class BlockContainerMixin:
             line_color: Rule colour as ``"#RRGGBB"`` or ``"auto"``. Defaults to ``"auto"``.
 
         Returns:
-            A live :class:`~fastdocx.paragraph.HorizontalRule` proxy.
+            A live :class:`~docxmint.paragraph.HorizontalRule` proxy.
         """
-        from fastdocx.paragraph import HorizontalRule
+        from docxmint.paragraph import HorizontalRule
 
         return self._block_append(
             HorizontalRule(line_style=line_style, line_width=line_width, line_color=line_color)
@@ -173,7 +173,7 @@ class BlockContainerMixin:
             text: Item text.
             level: Nesting level (0–8). Defaults to ``0``.
         """
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, list_style="bullet", list_level=level))
 
@@ -184,7 +184,7 @@ class BlockContainerMixin:
             text: Item text.
             level: Nesting level (0–8). Defaults to ``0``.
         """
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, list_style="number", list_level=level))
 
@@ -201,7 +201,7 @@ class BlockContainerMixin:
         """Append a standalone paragraph containing a single inline image.
 
         Creates a new blank paragraph, appends the image to it, and returns
-        the live :class:`~fastdocx.image.Image` proxy — the same pattern as
+        the live :class:`~docxmint.image.Image` proxy — the same pattern as
         ``python-docx``'s ``add_picture()``.
 
         Args:
@@ -214,9 +214,9 @@ class BlockContainerMixin:
             alt_text: Accessibility description for screen readers.
 
         Returns:
-            A live :class:`~fastdocx.image.Image` proxy for the inserted image.
+            A live :class:`~docxmint.image.Image` proxy for the inserted image.
         """
-        from fastdocx.paragraph import Paragraph
+        from docxmint.paragraph import Paragraph
 
         para = self._block_append(Paragraph())
         return para.add_image(

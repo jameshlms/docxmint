@@ -1,7 +1,7 @@
-# fastdocx._proxy — proxy base and descriptor machinery
-from fastdocx._attrs import RawAttrMixin
-from fastdocx._proxy.base import UNSET, ProxyBase
-from fastdocx._proxy.descriptors import (
+# docxmint._proxy — proxy base and descriptor machinery
+from docxmint._attrs import RawAttrMixin
+from docxmint._proxy.base import UNSET, ProxyBase
+from docxmint._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,

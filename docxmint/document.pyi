@@ -3,15 +3,15 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import IO, Self, overload
 
-from fastdocx._collection import CollectionMixin as _CollectionMixin
-from fastdocx._collection import DocumentView as DocumentView
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx.formats import PageMargins
-from fastdocx.image import Image
-from fastdocx.paragraph import HorizontalRule, LineStyleArg, Paragraph
-from fastdocx.section import Section
-from fastdocx.styles import Style, StyleCollection
-from fastdocx.table import Table
+from docxmint._collection import CollectionMixin as _CollectionMixin
+from docxmint._collection import DocumentView as DocumentView
+from docxmint._proxy.base import ProxyBase as _ProxyBase
+from docxmint.formats import PageMargins
+from docxmint.image import Image
+from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
+from docxmint.section import Section
+from docxmint.styles import Style, StyleCollection
+from docxmint.table import Table
 
 _PathArg = str | os.PathLike[str] | IO[bytes]
 

@@ -5,16 +5,16 @@ from unittest.mock import patch
 
 import pytest
 
-from fastdocx.document import Document
-from fastdocx.paragraph import Paragraph
+from docxmint.document import Document
+from docxmint.paragraph import Paragraph
 from tests.unit.mock_handle import MockHandle
 
 
 def _make_doc(mock: MockHandle | None = None):
     if mock is None:
         mock = MockHandle()
-    with patch("fastdocx._native.handle.get_handle", return_value=mock):
-        from fastdocx.document import Document
+    with patch("docxmint._native.handle.get_handle", return_value=mock):
+        from docxmint.document import Document
         doc = Document()
     return doc, mock
 

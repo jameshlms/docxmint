@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self, override
 
-from fastdocx._block import BlockContainerMixin
-from fastdocx._proxy.base import UNSET as _UNSET
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
+from docxmint._block import BlockContainerMixin
+from docxmint._proxy.base import UNSET as _UNSET
+from docxmint._proxy.base import ElementState, ProxyBase
+from docxmint._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
 
 
 class Section(BlockContainerMixin, ProxyBase):
     """A document section — controls page layout for a contiguous range of body content.
 
-    Sections are live proxies accessed through :attr:`~fastdocx.document.Document.sections`:
+    Sections are live proxies accessed through :attr:`~docxmint.document.Document.sections`:
 
     .. code-block:: python
 
@@ -116,7 +116,7 @@ class Section(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return None
         self._check_valid()
-        return (self._getattr("_native"), self._get_lib(), self._getattr("_document"))
+        return (self._native_handle, self._get_lib(), self._document_ref)
 
     @override
     def _copy_data(self) -> dict[str, Any]:
@@ -136,9 +136,9 @@ class Section(BlockContainerMixin, ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Section(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             return "Section(spec)"
         return f"Section(handle={native!r})"

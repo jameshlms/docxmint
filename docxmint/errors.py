@@ -1,15 +1,15 @@
-"""Custom exceptions for fastdocx.
+"""Custom exceptions for docxmint.
 
-All public exceptions are subclasses of :class:`FastDocxError`, so callers can
-catch the entire hierarchy with a single ``except FastDocxError`` clause if needed.
+All public exceptions are subclasses of :class:`DocxMintError`, so callers can
+catch the entire hierarchy with a single ``except DocxMintError`` clause if needed.
 """
 
 
-class FastDocxError(Exception):
-    """Base class for all FastDocx exceptions."""
+class DocxMintError(Exception):
+    """Base class for all DocxMint exceptions."""
 
 
-class DocumentClosedError(FastDocxError):
+class DocumentClosedError(DocxMintError):
     """Raised when a proxy property is accessed after its document has been closed.
 
     This happens when you hold a live proxy outside the context manager::
@@ -23,14 +23,14 @@ class DocumentClosedError(FastDocxError):
     """
 
 
-class StaleProxyError(FastDocxError):
+class StaleProxyError(DocxMintError):
     """Raised when a proxy is accessed after its element was removed from the document.
 
     **Fix**: call ``snapshot(element)`` before removing it if you need the data.
     """
 
 
-class OwnershipError(FastDocxError):
+class OwnershipError(DocxMintError):
     """Raised when a live element from document A is appended to document B.
 
     Each live proxy is bound to the document that created it. To move content
@@ -41,15 +41,15 @@ class OwnershipError(FastDocxError):
     """
 
 
-class NativeRuntimeError(RuntimeError, FastDocxError):
+class NativeRuntimeError(RuntimeError, DocxMintError):
     """Raised when a native FFI call fails or returns an unexpected error code.
 
-    Inherits from both :exc:`RuntimeError` and :exc:`FastDocxError`.
+    Inherits from both :exc:`RuntimeError` and :exc:`DocxMintError`.
     The exception message contains the error detail from the C# layer.
     """
 
 
-class NonexistentCachedPageCount(RuntimeError, FastDocxError):
+class NonexistentCachedPageCount(RuntimeError, DocxMintError):
     """Raised when a page count is requested for a document that has not been paginated.
 
     Page counts require an explicit pagination step that is not yet exposed in the

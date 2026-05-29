@@ -5,12 +5,12 @@ from typing import Any, Literal, Self
 
 from _typeshed import Incomplete
 
-from fastdocx._collection import DocumentView as DocumentView
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx._proxy.descriptors import ChoiceProperty as _ChoiceProperty
-from fastdocx.hyperlink import Hyperlink as Hyperlink
-from fastdocx.image import Image as Image
-from fastdocx.run import Run as Run
+from docxmint._collection import DocumentView as DocumentView
+from docxmint._proxy.base import ProxyBase as _ProxyBase
+from docxmint._proxy.descriptors import ChoiceProperty as _ChoiceProperty
+from docxmint.hyperlink import Hyperlink as Hyperlink
+from docxmint.image import Image as Image
+from docxmint.run import Run as Run
 
 class Paragraph(_ProxyBase):
     _child_type_name: str

@@ -7,15 +7,15 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from fastdocx.errors import NativeRuntimeError
+from docxmint.errors import NativeRuntimeError
 
 _PLATFORM_TO_LIB: dict[tuple[str, str], str] = {
-    ("Linux", "x86_64"): "_libs/linux-x64/FastDocx.Native.so",
-    ("Linux", "aarch64"): "_libs/linux-arm64/FastDocx.Native.so",
-    ("Windows", "AMD64"): "_libs/win-x64/FastDocx.Native.dll",
-    ("Windows", "ARM64"): "_libs/win-arm64/FastDocx.Native.dll",
-    ("Darwin", "arm64"): "_libs/osx-arm64/FastDocx.Native.dylib",
-    ("Darwin", "x86_64"): "_libs/osx-x64/FastDocx.Native.dylib",
+    ("Linux", "x86_64"): "_libs/linux-x64/DocxMint.Native.so",
+    ("Linux", "aarch64"): "_libs/linux-arm64/DocxMint.Native.so",
+    ("Windows", "AMD64"): "_libs/win-x64/DocxMint.Native.dll",
+    ("Windows", "ARM64"): "_libs/win-arm64/DocxMint.Native.dll",
+    ("Darwin", "arm64"): "_libs/osx-arm64/DocxMint.Native.dylib",
+    ("Darwin", "x86_64"): "_libs/osx-x64/DocxMint.Native.dylib",
 }
 
 _BUF_INIT = 256
@@ -23,7 +23,7 @@ _cached: Handle | None = None
 
 
 class Handle:
-    """Thin ctypes wrapper around the FastDocx native shared library.
+    """Thin ctypes wrapper around the DocxMint native shared library.
 
     Exposes the generic property and collection API defined in the spec.
     All other modules call through this class — no ctypes elsewhere.
@@ -339,14 +339,14 @@ def get_handle() -> Handle:
     if rel is None:
         supported = list(_PLATFORM_TO_LIB.keys())
         raise RuntimeError(
-            f"fastdocx: unsupported platform {key[0]!r}/{key[1]!r}. Supported: {supported}"
+            f"docxmint: unsupported platform {key[0]!r}/{key[1]!r}. Supported: {supported}"
         )
 
     lib_path = Path(__file__).parent.parent / rel
     if not lib_path.exists():
         raise RuntimeError(
-            f"fastdocx: native binary not found at {lib_path}.\n"
-            f"Build with: dotnet publish native/FastDocx.Native -r <rid> -c Release"
+            f"docxmint: native binary not found at {lib_path}.\n"
+            f"Build with: dotnet publish native/DocxMint.Native -r <rid> -c Release"
         )
 
     _cached = Handle(str(lib_path))

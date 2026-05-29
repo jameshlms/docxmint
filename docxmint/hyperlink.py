@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any, override
 
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import StringProperty
+from docxmint._proxy.base import ProxyBase, ElementState
+from docxmint._proxy.descriptors import StringProperty
 
 __all__ = ["Hyperlink"]
 
@@ -52,10 +52,8 @@ class Hyperlink(ProxyBase):
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
             return dict(self._getattr("_data"))
-        self._check_valid()
         lib = self._get_lib()
-        native = self._getattr("_native")
-        assert native is not None
+        native = self._native_handle
         return {
             "text": lib.get_str(native, "text"),
             "url": lib.get_str(native, "url"),
@@ -67,9 +65,9 @@ class Hyperlink(ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Hyperlink(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             data = self._getattr("_data")
             return f"Hyperlink(text={data.get('text', '')!r}, url={data.get('url', '')!r})"

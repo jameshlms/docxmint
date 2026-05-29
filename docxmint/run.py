@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self, override
 
-from fastdocx._proxy.base import UNSET as _UNSET
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import (
+from docxmint._proxy.base import UNSET as _UNSET
+from docxmint._proxy.base import ProxyBase, ElementState
+from docxmint._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,
     FloatProperty,
     StringProperty,
 )
-from fastdocx.formats import RGBColor
-from fastdocx.units import Color
+from docxmint.formats import RGBColor
+from docxmint.units import Color
 
 __all__ = ["Run", "Color", "RGBColor"]
 
@@ -283,7 +283,7 @@ class Run(ProxyBase):
         """Set text colour and return *self* for chaining.
 
         Args:
-            value: A :class:`~fastdocx.units.Color` instance, ``"#RRGGBB"`` hex string,
+            value: A :class:`~docxmint.units.Color` instance, ``"#RRGGBB"`` hex string,
                 or ``"auto"``.
         """
         self.color = value
@@ -372,7 +372,7 @@ class Run(ProxyBase):
             outline: Outline effect.
             shadow: Shadow effect.
             color: Text colour as ``"#RRGGBB"``, ``"auto"``, or a
-                :class:`~fastdocx.units.Color` instance.
+                :class:`~docxmint.units.Color` instance.
             highlight: Named highlight colour, e.g. ``"yellow"``.
             font_name: Font family name.
             font_size: Font size in points.
@@ -498,7 +498,7 @@ class Run(ProxyBase):
         if not self._is_live:
             return dict(self._getattr("_data"))
         lib = self._get_lib()
-        native = self._getattr("_native")
+        native = self._native_handle
 
         def get_bool(name: str) -> bool:
             return lib.get_int(native, name) > 0
@@ -555,9 +555,9 @@ class Run(ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Run(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             data = self._getattr("_data")
             text = data.get("text", "")

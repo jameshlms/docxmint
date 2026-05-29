@@ -1,7 +1,7 @@
 """ProxyBase — the root class for all C#-backed proxy objects.
 
 Every proxy (Paragraph, Run, Table, Row, Cell, Section) lives in one of four states
-represented by ProxyState:
+represented by ElementState:
 
   LIVE         — _native is an int handle; every property access crosses FFI.
   CONSTRUCTION — _native is None; data lives in _data dict; no C# handle yet.
@@ -24,11 +24,11 @@ from abc import abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from fastdocx._attrs import RawAttrMixin
-from fastdocx.errors import DocumentClosedError, StaleProxyError
+from docxmint._attrs import RawAttrMixin
+from docxmint.errors import DocumentClosedError, StaleProxyError
 
 
-class ProxyState(enum.Enum):
+class ElementState(enum.Enum):
     """The lifecycle state of a proxy object."""
 
     CONSTRUCTION = "construction"
@@ -40,8 +40,8 @@ class ProxyState(enum.Enum):
 UNSET: Any = object()
 
 if TYPE_CHECKING:
-    from fastdocx._native.handle import Handle
-    from fastdocx.document import Document
+    from docxmint._native.handle import Handle
+    from docxmint.document import Document
 
 
 class ProxyBase(RawAttrMixin):
@@ -51,7 +51,7 @@ class ProxyBase(RawAttrMixin):
     _child_type_name: str
     _native: int | None
     _document: Document | None
-    _state: ProxyState
+    _state: ElementState
 
     def _get_data(self) -> dict[str, Any]:
         """Return the data dict for this proxy, whether live or snapshot."""
@@ -79,26 +79,40 @@ class ProxyBase(RawAttrMixin):
         """Set the native handle for this proxy."""
         self._setattr("_native", native)
 
+    @property
+    def _native_handle(self) -> int:
+        """The native handle; only valid in LIVE state. Asserts non-None."""
+        native = self._getattr("_native")
+        assert native is not None
+        return native
+
     def _get_document(self) -> Document | None:
         """Return the associated Document for this proxy, or None if not live."""
         return self._getattr("_document")
+
+    @property
+    def _document_ref(self) -> Document:
+        """The associated document; only valid in LIVE state. Asserts non-None."""
+        doc = self._getattr("_document")
+        assert doc is not None
+        return doc
 
     def _set_document(self, document: Document | None) -> None:
         """Set the associated Document for this proxy."""
         self._setattr("_document", document)
 
-    def _get_state(self) -> ProxyState:
-        """Return the current ProxyState for this proxy."""
+    def _get_state(self) -> ElementState:
+        """Return the current ElementState for this proxy."""
         return self._getattr("_state")
 
-    def _set_state(self, state: ProxyState) -> None:
-        """Set the current ProxyState for this proxy."""
+    def _set_state(self, state: ElementState) -> None:
+        """Set the current ElementState for this proxy."""
         self._setattr("_state", state)
 
     def __init__(self) -> None:
         self._set_native(None)
         self._set_document(None)
-        self._set_state(ProxyState.CONSTRUCTION)
+        self._set_state(ElementState.CONSTRUCTION)
         self._set_data(dict())
 
     @classmethod
@@ -106,7 +120,7 @@ class ProxyBase(RawAttrMixin):
         instance = cls.__new__(cls)
         instance._set_native(native_handle)
         instance._set_document(document)
-        instance._set_state(ProxyState.LIVE)
+        instance._set_state(ElementState.LIVE)
         instance._set_data(dict())
         return instance
 
@@ -115,36 +129,36 @@ class ProxyBase(RawAttrMixin):
     # ------------------------------------------------------------------
 
     @property
-    def state(self) -> ProxyState:
+    def state(self) -> ElementState:
         """The current lifecycle state of this proxy."""
         return self._getattr("_state")
 
     @property
     def is_live(self) -> bool:
         """True when backed by a native handle in an open document."""
-        return self.state is ProxyState.LIVE
+        return self.state is ElementState.LIVE
 
     @property
     def is_snapshot(self) -> bool:
         """True when this is a document-independent copy made by ``snapshot()``."""
-        return self.state is ProxyState.SNAPSHOT
+        return self.state is ElementState.SNAPSHOT
 
     @property
     def is_construction(self) -> bool:
         """True when this is a manually constructed spec not yet appended to a document."""
-        return self.state is ProxyState.CONSTRUCTION
+        return self.state is ElementState.CONSTRUCTION
 
     @property
     def is_stale(self) -> bool:
         """True when the element has been removed from its document."""
-        return self.state is ProxyState.STALE
+        return self.state is ElementState.STALE
 
     @property
     def _is_live(self) -> bool:
         return self.is_live
 
     def _check_valid(self) -> None:
-        if self._getattr("_state") is ProxyState.STALE:
+        if self._getattr("_state") is ElementState.STALE:
             raise StaleProxyError(
                 f"This {type(self).__name__} was removed from the document. "
                 "Call snapshot() before removing to retain data."
@@ -157,12 +171,12 @@ class ProxyBase(RawAttrMixin):
             )
 
     def _mark_stale(self) -> None:
-        self._set_state(ProxyState.STALE)
+        self._set_state(ElementState.STALE)
 
     def _attach(self, native_handle: int, document: Document) -> None:
         self._set_native(native_handle)
         self._set_document(document)
-        self._set_state(ProxyState.LIVE)
+        self._set_state(ElementState.LIVE)
 
     def _get_lib(self) -> Handle:
         doc = self._get_document()
@@ -233,7 +247,7 @@ class ProxyBase(RawAttrMixin):
                 break
         # No data descriptor found
         state = self._get_state()
-        if state is ProxyState.LIVE or state is ProxyState.STALE:
+        if state is ElementState.LIVE or state is ElementState.STALE:
             self._check_valid()
             raise AttributeError(f"{type(self).__name__!r} has no settable attribute {name!r}")
         self._get_data()[name] = value
@@ -242,7 +256,7 @@ class ProxyBase(RawAttrMixin):
         # Called only when normal attribute lookup fails.
         # Descriptors are found by normal MRO lookup before __getattr__ is called.
         state = self._get_state()
-        if state is ProxyState.LIVE or state is ProxyState.STALE:
+        if state is ElementState.LIVE or state is ElementState.STALE:
             self._check_valid()
             raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}")
         try:
@@ -267,7 +281,7 @@ class ProxyBase(RawAttrMixin):
         instance: Self = type(self).__new__(type(self))
         instance._set_native(None)
         instance._set_document(None)
-        instance._set_state(ProxyState.SNAPSHOT)
+        instance._set_state(ElementState.SNAPSHOT)
         instance._set_data(data)
         return instance
 
@@ -297,7 +311,7 @@ class ProxyBase(RawAttrMixin):
 
     def __repr__(self) -> str:
         state = self._get_state()
-        if state is ProxyState.STALE:
+        if state is ElementState.STALE:
             return f"{type(self).__name__}(<stale>)"
         native = self._get_native()
         if native is None:

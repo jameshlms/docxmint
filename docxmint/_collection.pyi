@@ -1,9 +1,13 @@
-from collections.abc import Iterable, Iterator
-from typing import Self, overload
+from __future__ import annotations
 
-from fastdocx._native.handle import Handle
-from fastdocx._proxy.base import ProxyBase
-from fastdocx.document import Document
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING, Self, overload
+
+from docxmint._native.handle import Handle
+from docxmint._proxy.base import ProxyBase
+
+if TYPE_CHECKING:
+    from docxmint.document import Document
 
 type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 

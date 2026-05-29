@@ -6,11 +6,10 @@ from collections.abc import Iterable, Iterator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal, Self, override
 
-from fastdocx._collection import DocumentView
-from fastdocx._proxy.base import UNSET as _UNSET
-from fastdocx._proxy.base import ProxyBase as _ProxyBase
-from fastdocx._proxy.base import ProxyState
-from fastdocx._proxy.descriptors import (
+from docxmint._collection import DocumentView
+from docxmint._proxy.base import UNSET as _UNSET
+from docxmint._proxy.base import ElementState, ProxyBase
+from docxmint._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,
@@ -20,12 +19,12 @@ from fastdocx._proxy.descriptors import (
 )
 
 if TYPE_CHECKING:
-    from fastdocx.hyperlink import Hyperlink
-    from fastdocx.image import Image
-    from fastdocx.run import Run
+    from docxmint.hyperlink import Hyperlink
+    from docxmint.image import Image
+    from docxmint.run import Run
 
 
-class Paragraph(_ProxyBase):
+class Paragraph(ProxyBase):
     """A paragraph element — either a live proxy or a construction object.
 
     **Construction object** (before appending to a document)::
@@ -73,19 +72,19 @@ class Paragraph(_ProxyBase):
         """
         if self._is_live:
             self._check_valid()
-            return self._get_lib().get_str(self._getattr("_native"), "text") or ""
+            return self._get_lib().get_str(self._native_handle, "text") or ""
         self._check_valid()
-        return "".join(r.text for r in self._getattr("_data").get("runs", []))
+        return "".join(r.text for r in self._get_data().get("runs", []))
 
     @text.setter
     def text(self, value: str) -> None:
         if self._is_live:
             self._check_valid()
-            self._get_lib().set_str(self._getattr("_native"), "text", value)
+            self._get_lib().set_str(self._native_handle, "text", value)
             return
-        from fastdocx.run import Run
+        from docxmint.run import Run
 
-        self._getattr("_data")["runs"] = [Run(value)] if value else []
+        self._get_data()["runs"] = [Run(value)] if value else []
 
     def __init__(
         self,
@@ -105,7 +104,7 @@ class Paragraph(_ProxyBase):
         list_style: Literal["bullet", "number"] | None = None,
         list_level: int = 0,
     ) -> None:
-        from fastdocx.run import Run
+        from docxmint.run import Run
 
         super().__init__()
         data: dict[str, Any] = {}
@@ -151,15 +150,15 @@ class Paragraph(_ProxyBase):
 
     @property
     def runs(self) -> DocumentView[Run]:
-        from fastdocx.run import Run
+        from docxmint.run import Run
 
         if not self._is_live:
-            runs_list: list[Any] = self._getattr("_data").setdefault("runs", [])
+            runs_list: list[Any] = self._get_data().setdefault("runs", [])
             return _ConstructionRunsView(runs_list)  # type: ignore[return-value]
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Run,
             "runs",
@@ -168,14 +167,14 @@ class Paragraph(_ProxyBase):
     @property
     def images(self) -> DocumentView[Image]:
         """Live filtered view of inline images in this paragraph."""
-        from fastdocx.image import Image
+        from docxmint.image import Image
 
         if not self._is_live:
             return DocumentView.empty(Image, "images")
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Image,
             "images",
@@ -188,21 +187,21 @@ class Paragraph(_ProxyBase):
     def add_run(self, text: str = "") -> Run:
         """Append a new run and return it.
 
-        Works in both construction state (returns a construction-state :class:`~fastdocx.run.Run`
+        Works in both construction state (returns a construction-state :class:`~docxmint.run.Run`
         added to the paragraph's run list) and live state (materialises the run in the
         native layer immediately).
         """
-        from fastdocx.run import Run
+        from docxmint.run import Run
 
         if not self._is_live:
             run = Run(text)
-            self._getattr("_data").setdefault("runs", []).append(run)
+            self._get_data().setdefault("runs", []).append(run)
             return run
-        from fastdocx._collection import DocumentView
+        from docxmint._collection import DocumentView
 
         view = DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Run,
             "runs",
@@ -229,7 +228,7 @@ class Paragraph(_ProxyBase):
             height: Display height in inches.
             alt_text: Accessibility description.
         """
-        from fastdocx.image import Image
+        from docxmint.image import Image
 
         if not self._is_live:
             raise ValueError("Cannot add_image to a paragraph that is not yet in a document.")
@@ -247,14 +246,14 @@ class Paragraph(_ProxyBase):
     @property
     def hyperlinks(self) -> DocumentView[Hyperlink]:
         """Live filtered view of inline hyperlinks in this paragraph."""
-        from fastdocx.hyperlink import Hyperlink
+        from docxmint.hyperlink import Hyperlink
 
         if not self._is_live:
             return DocumentView.empty(Hyperlink, "hyperlinks")
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Hyperlink,
             "hyperlinks",
@@ -267,7 +266,7 @@ class Paragraph(_ProxyBase):
             text: Display text shown to the reader.
             url:  Target URL.
         """
-        from fastdocx.hyperlink import Hyperlink
+        from docxmint.hyperlink import Hyperlink
 
         if not self._is_live:
             raise ValueError("Cannot add_hyperlink to a paragraph that is not yet in a document.")
@@ -281,7 +280,7 @@ class Paragraph(_ProxyBase):
         """
         if not self._is_live:
             raise ValueError("Cannot add_break to a paragraph that is not yet in a document.")
-        self._get_lib().append_child(self._getattr("_native"), "break")
+        self._get_lib().append_child(self._native_handle, "break")
         return self
 
     def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self:
@@ -389,9 +388,9 @@ class Paragraph(_ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Paragraph(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             return f"Paragraph({self.text!r})"
         try:
@@ -407,7 +406,7 @@ class Paragraph(_ProxyBase):
 
     def __len__(self) -> int:
         if not self._is_live:
-            data = self._getattr("_data")
+            data = self._get_data()
             return len(data.get("runs", []))
         try:
             return len(self.runs)
@@ -434,7 +433,7 @@ class _ConstructionRunsView:
         self._runs = runs
 
     def _validate_element(self, element: Any) -> None:
-        from fastdocx.run import Run
+        from docxmint.run import Run
 
         if not isinstance(element, Run):
             raise TypeError(f"runs only accepts Run elements, got {type(element).__name__}")
@@ -555,9 +554,9 @@ class HorizontalRule(Paragraph):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "HorizontalRule(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         style: LineStyle | Literal["single"] = (
             self._getattr("_data").get("hr_style", "single")
             if native is None

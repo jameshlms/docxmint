@@ -1,7 +1,7 @@
 """Image proxy — a run-level inline image element.
 
 In OpenXML an image is stored as ``<w:drawing>`` inside a ``<w:r>`` run, so
-:class:`Image` is a sibling of :class:`~fastdocx.run.Run` within
+:class:`Image` is a sibling of :class:`~docxmint.run.Run` within
 ``para.runs``.
 """
 
@@ -11,8 +11,8 @@ import mimetypes
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import FloatProperty, StringProperty
+from docxmint._proxy.base import ProxyBase, ElementState
+from docxmint._proxy.descriptors import FloatProperty, StringProperty
 
 if TYPE_CHECKING:
     pass
@@ -133,10 +133,8 @@ class Image(ProxyBase):
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
             return dict(self._getattr("_data"))
-        self._check_valid()
         lib = self._get_lib()
-        native = self._getattr("_native")
-        assert native is not None
+        native = self._native_handle
         return {
             "_image_data": lib.get_image_data(native),
             "_content_type": lib.get_str(native, "content_type") or "image/png",
@@ -151,9 +149,9 @@ class Image(ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Image(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             data = self._getattr("_data")
             ct = data.get("_content_type", "")

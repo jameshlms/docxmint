@@ -15,7 +15,7 @@ from pathlib import Path
 STRUCT_LAYOUTS_PATH = (
     Path(__file__).parent.parent
     / "native"
-    / "FastDocx.Native"
+    / "DocxMint.Native"
     / "Marshalling"
     / "StructLayouts.cs"
 )

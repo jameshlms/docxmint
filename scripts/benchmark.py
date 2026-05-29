@@ -1,4 +1,4 @@
-"""Benchmark FastDOCX vs python-docx across document sizes.
+"""Benchmark DocxMint vs python-docx across document sizes.
 
 Measures wall-clock time to build and save a document with N paragraphs
 and an N/10-row table. Results are written to scripts/benchmark_results.json
@@ -61,11 +61,11 @@ def bench_python_docx(n_paragraphs: int) -> float:
 
 
 # ---------------------------------------------------------------------------
-# FastDOCX
+# DocxMint
 # ---------------------------------------------------------------------------
 
-def bench_fastdocx(n_paragraphs: int) -> float:
-    from fastdocx import Document
+def bench_docxmint(n_paragraphs: int) -> float:
+    from docxmint import Document
 
     times = []
     for _ in range(_repeats(n_paragraphs)):
@@ -95,7 +95,7 @@ def bench_fastdocx(n_paragraphs: int) -> float:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    results: dict[str, dict[str, float]] = {"python_docx": {}, "fastdocx": {}}
+    results: dict[str, dict[str, float]] = {"python_docx": {}, "docxmint": {}}
 
     for size in DOCUMENT_SIZES:
         print(f"  python-docx  n={size:>6} ...", end=" ", flush=True)
@@ -103,9 +103,9 @@ def main() -> None:
         results["python_docx"][str(size)] = t
         print(f"{t:.3f}s")
 
-        print(f"  fastdocx     n={size:>6} ...", end=" ", flush=True)
-        t = bench_fastdocx(size)
-        results["fastdocx"][str(size)] = t
+        print(f"  docxmint     n={size:>6} ...", end=" ", flush=True)
+        t = bench_docxmint(size)
+        results["docxmint"][str(size)] = t
         print(f"{t:.3f}s")
 
     out = os.path.join(os.path.dirname(__file__), "benchmark_results.json")

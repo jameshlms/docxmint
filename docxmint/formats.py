@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from fastdocx.units import Color
+from docxmint.units import Color
 
 # Backward-compatible alias — prefer Color directly.
 RGBColor = Color

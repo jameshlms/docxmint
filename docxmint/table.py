@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Generator, Iterator
 from typing import Any, Literal, overload, override
 
-from fastdocx._block import BlockContainerMixin
-from fastdocx._block import BlockCtx as _BlockCtx
-from fastdocx._collection import DocumentView
-from fastdocx._proxy.base import ProxyBase, ProxyState
-from fastdocx._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
-from fastdocx.paragraph import Paragraph
+from docxmint._block import BlockContainerMixin
+from docxmint._block import BlockCtx as _BlockCtx
+from docxmint._collection import DocumentView
+from docxmint._proxy.base import ProxyBase, ElementState
+from docxmint._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
+from docxmint.paragraph import Paragraph
 
 
 class Cell(BlockContainerMixin, ProxyBase):
@@ -54,7 +54,7 @@ class Cell(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return None
         self._check_valid()
-        return (self._getattr("_native"), self._get_lib(), self._getattr("_document"))
+        return (self._native_handle, self._get_lib(), self._document_ref)
 
     def merge(self, other: Cell) -> None:
         raise NotImplementedError("Cell.merge() is not yet implemented in v1.")
@@ -69,9 +69,9 @@ class Cell(BlockContainerMixin, ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Cell(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             return "Cell(spec)"
         try:
@@ -89,7 +89,7 @@ class Cell(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return 0
         try:
-            return self._get_lib().get_count(self._getattr("_native"), "body")
+            return self._get_lib().get_count(self._native_handle, "body")
         except Exception:
             return 0
 
@@ -99,8 +99,8 @@ class Cell(BlockContainerMixin, ProxyBase):
         self._check_valid()
         return iter(
             DocumentView(
-                self._getattr("_native"),
-                self._getattr("_document"),
+                self._native_handle,
+                self._document_ref,
                 self._get_lib(),
                 (Paragraph, Table),
                 "body",
@@ -144,8 +144,8 @@ class Row(ProxyBase):
             return DocumentView.empty(Cell, "cells")
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Cell,
             "cells",
@@ -160,9 +160,9 @@ class Row(ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Row(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             return "Row(spec)"
         return f"Row(handle={native!r})"
@@ -233,8 +233,8 @@ class Table(ProxyBase):
             return DocumentView.empty(Row, "rows")
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Row,
             "rows",
@@ -250,8 +250,8 @@ class Table(ProxyBase):
             return DocumentView.empty(Cell, "cells")
         self._check_valid()
         return DocumentView(
-            self._getattr("_native"),
-            self._getattr("_document"),
+            self._native_handle,
+            self._document_ref,
             self._get_lib(),
             Cell,
             "cells",
@@ -292,9 +292,9 @@ class Table(ProxyBase):
 
     @override
     def __repr__(self) -> str:
-        if self.state is ProxyState.STALE:
+        if self.state is ElementState.STALE:
             return "Table(<stale>)"
-        native = self._getattr("_native")
+        native = self._get_native()
         if native is None:
             d = self._getattr("_data")
             return f"Table(rows={d.get('rows')}, cols={d.get('cols')})"
