@@ -1,6 +1,6 @@
-# DocxMint
+# NavyFox
 
-**DocxMint** is a Python library for creating and editing `.docx` files, backed by a C# Native AOT shared library. All document state lives in the native layer; Python holds lightweight proxy objects that cross the FFI boundary on every read and write.
+**NavyFox** is a Python library for creating and editing `.docx` files, backed by a C# Native AOT shared library. All document state lives in the native layer; Python holds lightweight proxy objects that cross the FFI boundary on every read and write.
 
 ```{toctree}
 :maxdepth: 2
@@ -22,7 +22,7 @@ api/index
 ## At a glance
 
 ```python
-from docxmint import Document
+from navyfox import Document
 
 with Document() as doc:
     doc.title = "Q1 Report"
@@ -43,6 +43,6 @@ with Document() as doc:
 
 ## Architecture
 
-DocxMint uses a *proxy model*: the C# backend owns all document data; Python holds integer handles that reference C# objects. Every property access crosses the FFI boundary — there is no Python-side cache unless you call `snapshot()`.
+NavyFox uses a *proxy model*: the C# backend owns all document data; Python holds integer handles that reference C# objects. Every property access crosses the FFI boundary — there is no Python-side cache unless you call `snapshot()`.
 
 See {doc}`concepts` for a full explanation of the proxy lifecycle, construction state, live state, and the snapshot pattern.

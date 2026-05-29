@@ -3,13 +3,13 @@
 ## Installation
 
 ```bash
-pip install docxmint
+pip install navyfox
 ```
 
 ## Creating a document
 
 ```python
-from docxmint import Document
+from navyfox import Document
 
 doc = Document()
 doc.add_heading("Project Report", level=1)
@@ -89,7 +89,7 @@ with Document() as doc:
 You can also set formatting at construction time:
 
 ```python
-from docxmint import Run
+from navyfox import Run
 
 run = Run("Hello", bold=True, font_name="Arial", font_size=14)
 ```
@@ -178,7 +178,7 @@ doc.add_horizontal_rule(line_style="double", line_width=3.0, line_color="#888888
 Or construct one explicitly and append it:
 
 ```python
-from docxmint import HorizontalRule
+from navyfox import HorizontalRule
 
 rule = HorizontalRule(line_style="dashed")
 doc.paragraphs.append(rule)
@@ -208,8 +208,8 @@ if "CustomStyle" in doc.styles:
 ## Color
 
 ```python
-from docxmint import Run
-from docxmint.units import Color
+from navyfox import Run
+from navyfox.units import Color
 
 run.color = Color(0xCC, 0x00, 0x00)   # RGB constructor
 run.color = "#CC0000"                  # hex string
@@ -221,7 +221,7 @@ run.color = Color.RED                  # named constant
 Objects start in **construction** state before being appended:
 
 ```python
-from docxmint import Paragraph
+from navyfox import Paragraph
 
 para = Paragraph("Hello")      # construction state — data held locally
 doc.paragraphs.append(para)    # para transitions to live state
@@ -236,7 +236,7 @@ A live proxy becomes invalid once its document is closed. Use `snapshot()` to ca
 a document-independent copy:
 
 ```python
-from docxmint import snapshot
+from navyfox import snapshot
 
 with Document.open("report.docx") as doc:
     para = doc.paragraphs[0]
@@ -248,10 +248,10 @@ print(snap.text)
 
 ## Error handling
 
-DocxMint raises specific subclasses of `DocxMintError`:
+NavyFox raises specific subclasses of `NavyFoxError`:
 
 ```python
-from docxmint.errors import DocumentClosedError, StaleProxyError, OwnershipError
+from navyfox.errors import DocumentClosedError, StaleProxyError, OwnershipError
 
 try:
     doc.close()

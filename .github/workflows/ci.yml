@@ -19,11 +19,11 @@ jobs:
           dotnet-version: "9.0.x"
 
       - name: Restore
-        run: dotnet restore native/DocxMint.Native/DocxMint.Native.csproj
+        run: dotnet restore native/NavyFox.Native/NavyFox.Native.csproj
 
       - name: Build (TreatWarningsAsErrors + AOT analyser)
         run: >
-          dotnet build native/DocxMint.Native/DocxMint.Native.csproj
+          dotnet build native/NavyFox.Native/NavyFox.Native.csproj
           -c Release
           -p:TreatWarningsAsErrors=true
           -p:EnableAotAnalyzer=true
@@ -31,7 +31,7 @@ jobs:
 
       - name: Run C# xUnit tests
         run: >
-          dotnet test tests/native/DocxMint.Native.Tests/DocxMint.Native.Tests.csproj
+          dotnet test tests/native/NavyFox.Native.Tests/NavyFox.Native.Tests.csproj
           -c Release
           --logger "console;verbosity=normal"
 
@@ -66,10 +66,10 @@ jobs:
           pip install -e ".[dev]"
 
       - name: ruff check
-        run: ruff check docxmint tests
+        run: ruff check navyfox tests
 
       - name: mypy --strict
-        run: mypy --strict docxmint
+        run: mypy --strict navyfox
 
       - name: pytest (unit only)
         run: pytest tests/unit/ -v --tb=short
