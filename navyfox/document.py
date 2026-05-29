@@ -518,6 +518,10 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
                     left=float(value[2]),
                     right=float(value[3]),
                 )
+            case tuple():
+                raise ValueError(
+                    f"margins tuple must have 2 or 4 elements, got {len(value)}"
+                )
             case _:
                 raise TypeError(
                     f"margins must be a PageMargins, float, or tuple; got {type(value).__name__!r}"
