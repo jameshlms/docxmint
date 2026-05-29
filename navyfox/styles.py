@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast, override
 
-from docxmint._proxy.base import ElementState, ProxyBase
-from docxmint._proxy.descriptors import (
+from navyfox._proxy.base import ElementState, ProxyBase
+from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,
@@ -16,8 +16,8 @@ from docxmint._proxy.descriptors import (
 )
 
 if TYPE_CHECKING:
-    from docxmint._native.handle import Handle
-    from docxmint.document import Document
+    from navyfox._native.handle import Handle
+    from navyfox.document import Document
 
 
 class Style(ProxyBase):
@@ -121,7 +121,7 @@ class Style(ProxyBase):
 class StyleCollection:
     """Live view over all styles defined in a document.
 
-    Obtained via :attr:`~docxmint.document.Document.styles`:
+    Obtained via :attr:`~navyfox.document.Document.styles`:
 
     .. code-block:: python
 

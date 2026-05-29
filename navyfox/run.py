@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self, override
 
-from docxmint._proxy.base import UNSET as _UNSET
-from docxmint._proxy.base import ProxyBase, ElementState
-from docxmint._proxy.descriptors import (
+from navyfox._proxy.base import UNSET as _UNSET
+from navyfox._proxy.base import ProxyBase, ElementState
+from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,
     FloatProperty,
     StringProperty,
 )
-from docxmint.formats import RGBColor
-from docxmint.units import Color
+from navyfox.formats import RGBColor
+from navyfox.units import Color
 
 __all__ = ["Run", "Color", "RGBColor"]
 
@@ -283,7 +283,7 @@ class Run(ProxyBase):
         """Set text colour and return *self* for chaining.
 
         Args:
-            value: A :class:`~docxmint.units.Color` instance, ``"#RRGGBB"`` hex string,
+            value: A :class:`~navyfox.units.Color` instance, ``"#RRGGBB"`` hex string,
                 or ``"auto"``.
         """
         self.color = value
@@ -372,7 +372,7 @@ class Run(ProxyBase):
             outline: Outline effect.
             shadow: Shadow effect.
             color: Text colour as ``"#RRGGBB"``, ``"auto"``, or a
-                :class:`~docxmint.units.Color` instance.
+                :class:`~navyfox.units.Color` instance.
             highlight: Named highlight colour, e.g. ``"yellow"``.
             font_name: Font family name.
             font_size: Font size in points.

@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 if TYPE_CHECKING:
-    from docxmint._proxy.base import ElementState
-    from docxmint.document import Document
+    from navyfox._proxy.base import ElementState
+    from navyfox.document import Document
 
 
 class RawAttrMixin:

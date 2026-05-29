@@ -1,21 +1,22 @@
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Self, overload
+from typing import IO, Self
 
-from docxmint._collection import CollectionMixin as _CollectionMixin
-from docxmint._collection import DocumentView as DocumentView
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint.formats import PageMargins
-from docxmint.image import Image
-from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
-from docxmint.section import Section
-from docxmint.styles import Style, StyleCollection
-from docxmint.table import Table
+from navyfox._block import BlockContainerMixin
+from navyfox._collection import CollectionMixin as _CollectionMixin
+from navyfox._collection import DocumentView as DocumentView
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox.formats import PageMargins
+from navyfox.image import Image
+from navyfox.paragraph import HorizontalRule, LineStyleArg, Paragraph
+from navyfox.section import Section
+from navyfox.styles import Style, StyleCollection
+from navyfox.table import Table
 
 _PathArg = str | os.PathLike[str] | IO[bytes]
 
-class Document(_CollectionMixin[Paragraph | Table]):
+class Document(BlockContainerMixin, _CollectionMixin[_ProxyBase]):
     def __init__(self) -> None: ...
     @classmethod
     def open(cls, path: _PathArg) -> Document: ...
@@ -50,10 +51,6 @@ class Document(_CollectionMixin[Paragraph | Table]):
     @property
     def page_count(self) -> int: ...
     @property
-    def paragraphs(self) -> DocumentView[Paragraph]: ...
-    @property
-    def tables(self) -> DocumentView[Table]: ...
-    @property
     def sections(self) -> DocumentView[Section]: ...
     @property
     def margins(self) -> PageMargins: ...
@@ -87,13 +84,6 @@ class Document(_CollectionMixin[Paragraph | Table]):
     ) -> Image: ...
     def __bool__(self) -> bool: ...
     def __contains__(self, element: object) -> bool: ...
-    def __iadd__(self, elements: Iterable[Paragraph | Table]) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
-    @overload
-    def __getitem__(self, key: int) -> Paragraph | Table: ...
-    @overload
-    def __getitem__(self, key: slice) -> DocumentView[Paragraph | Table]: ...
-    @overload
-    def __getitem__[T: _ProxyBase](self, key: type[T]) -> DocumentView[T]: ...

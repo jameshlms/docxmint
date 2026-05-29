@@ -9,17 +9,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from docxmint._proxy.base import ProxyBase
+from navyfox._proxy.base import ProxyBase
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from docxmint._collection import DocumentView
-    from docxmint._native.handle import Handle
-    from docxmint.document import Document
-    from docxmint.image import Image
-    from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
-    from docxmint.table import Table
+    from navyfox._collection import DocumentView
+    from navyfox._native.handle import Handle
+    from navyfox.document import Document
+    from navyfox.image import Image
+    from navyfox.paragraph import HorizontalRule, LineStyleArg, Paragraph
+    from navyfox.table import Table
 
 
 type BlockCtx = tuple[int, Handle, Document]
@@ -28,14 +28,14 @@ type BlockCtx = tuple[int, Handle, Document]
 class BlockContainerMixin:
     """Mixin that adds ``paragraphs``, ``tables``, and ``add_*`` convenience helpers.
 
-    Applied to :class:`~docxmint.document.Document` and :class:`~docxmint.table.Cell`.
+    Applied to :class:`~navyfox.document.Document` and :class:`~navyfox.table.Cell`.
     Concrete classes implement :meth:`_block_context`; everything else is derived
     from that single hook.
 
     Provides:
 
-    - ``paragraphs`` — live :class:`~docxmint.collection.DocumentView` of paragraphs
-    - ``tables`` — live :class:`~docxmint.collection.DocumentView` of tables
+    - ``paragraphs`` — live :class:`~navyfox.collection.DocumentView` of paragraphs
+    - ``tables`` — live :class:`~navyfox.collection.DocumentView` of tables
     - :meth:`add_paragraph` — create and append a paragraph in one call
     - :meth:`add_heading` — create and append a heading paragraph in one call
     - :meth:`add_table` — create and append a table in one call
@@ -51,7 +51,7 @@ class BlockContainerMixin:
         elem_type: type[T],
         collection: str,
     ) -> DocumentView[T]:
-        from docxmint._collection import DocumentView
+        from navyfox._collection import DocumentView
 
         ctx = self._block_context()
         if ctx is None:
@@ -64,7 +64,7 @@ class BlockContainerMixin:
         if ctx is None:
             raise ValueError(f"Cannot add content to a {type(self).__name__} that is not live.")
         handle, lib, document = ctx
-        from docxmint._collection import DocumentView
+        from navyfox._collection import DocumentView
 
         view = DocumentView(handle, document, lib, type(element), "body")
         return view._append_one(element)
@@ -75,7 +75,7 @@ class BlockContainerMixin:
 
     @property
     def paragraphs(self) -> DocumentView[Paragraph]:
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         return self._block_view(Paragraph, "paragraphs")
 
@@ -85,7 +85,7 @@ class BlockContainerMixin:
 
     @property
     def tables(self) -> DocumentView[Table]:
-        from docxmint.table import Table
+        from navyfox.table import Table
 
         return self._block_view(Table, "tables")
 
@@ -105,9 +105,9 @@ class BlockContainerMixin:
             style: Paragraph style name. Defaults to ``"Normal"``.
 
         Returns:
-            A live :class:`~docxmint.paragraph.Paragraph` proxy.
+            A live :class:`~navyfox.paragraph.Paragraph` proxy.
         """
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=style))
 
@@ -121,9 +121,9 @@ class BlockContainerMixin:
             level: Heading level (1–9). Defaults to ``1``.
 
         Returns:
-            A live :class:`~docxmint.paragraph.Paragraph` proxy styled as a heading.
+            A live :class:`~navyfox.paragraph.Paragraph` proxy styled as a heading.
         """
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, style=f"Heading{level}"))
 
@@ -136,9 +136,9 @@ class BlockContainerMixin:
             style: Table style name. Defaults to ``"TableGrid"``.
 
         Returns:
-            A live :class:`~docxmint.table.Table` proxy.
+            A live :class:`~navyfox.table.Table` proxy.
         """
-        from docxmint.table import Table
+        from navyfox.table import Table
 
         return self._block_append(Table(rows, cols, style=style))
 
@@ -158,9 +158,9 @@ class BlockContainerMixin:
             line_color: Rule colour as ``"#RRGGBB"`` or ``"auto"``. Defaults to ``"auto"``.
 
         Returns:
-            A live :class:`~docxmint.paragraph.HorizontalRule` proxy.
+            A live :class:`~navyfox.paragraph.HorizontalRule` proxy.
         """
-        from docxmint.paragraph import HorizontalRule
+        from navyfox.paragraph import HorizontalRule
 
         return self._block_append(
             HorizontalRule(line_style=line_style, line_width=line_width, line_color=line_color)
@@ -173,7 +173,7 @@ class BlockContainerMixin:
             text: Item text.
             level: Nesting level (0–8). Defaults to ``0``.
         """
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, list_style="bullet", list_level=level))
 
@@ -184,7 +184,7 @@ class BlockContainerMixin:
             text: Item text.
             level: Nesting level (0–8). Defaults to ``0``.
         """
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         return self._block_append(Paragraph(text, list_style="number", list_level=level))
 
@@ -201,7 +201,7 @@ class BlockContainerMixin:
         """Append a standalone paragraph containing a single inline image.
 
         Creates a new blank paragraph, appends the image to it, and returns
-        the live :class:`~docxmint.image.Image` proxy — the same pattern as
+        the live :class:`~navyfox.image.Image` proxy — the same pattern as
         ``python-docx``'s ``add_picture()``.
 
         Args:
@@ -214,9 +214,9 @@ class BlockContainerMixin:
             alt_text: Accessibility description for screen readers.
 
         Returns:
-            A live :class:`~docxmint.image.Image` proxy for the inserted image.
+            A live :class:`~navyfox.image.Image` proxy for the inserted image.
         """
-        from docxmint.paragraph import Paragraph
+        from navyfox.paragraph import Paragraph
 
         para = self._block_append(Paragraph())
         return para.add_image(

@@ -24,8 +24,8 @@ from abc import abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from docxmint._attrs import RawAttrMixin
-from docxmint.errors import DocumentClosedError, StaleProxyError
+from navyfox._attrs import RawAttrMixin
+from navyfox.errors import DocumentClosedError, StaleProxyError
 
 
 class ElementState(enum.Enum):
@@ -40,8 +40,8 @@ class ElementState(enum.Enum):
 UNSET: Any = object()
 
 if TYPE_CHECKING:
-    from docxmint._native.handle import Handle
-    from docxmint.document import Document
+    from navyfox._native.handle import Handle
+    from navyfox.document import Document
 
 
 class ProxyBase(RawAttrMixin):

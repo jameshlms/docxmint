@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Self, overload
 
-from docxmint._native.handle import Handle
-from docxmint._proxy.base import ProxyBase
+from navyfox._native.handle import Handle
+from navyfox._proxy.base import ProxyBase
 
 if TYPE_CHECKING:
-    from docxmint.document import Document
+    from navyfox.document import Document
 
 type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 

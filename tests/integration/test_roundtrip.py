@@ -1,6 +1,6 @@
 """Integration round-trip tests.
 
-Generates a real .docx with DocxMint (requires the native binary), then opens
+Generates a real .docx with NavyFox (requires the native binary), then opens
 it with python-docx and asserts on paragraph text and table structure.
 
 Automatically skipped when the native binary is not present.
@@ -18,13 +18,13 @@ import pytest
 # module never raises even when the binary is absent.
 # ---------------------------------------------------------------------------
 
-_SKIP_REASON = "Native DocxMint binary not available on this platform"
+_SKIP_REASON = "Native NavyFox binary not available on this platform"
 
 
 def _native_available() -> bool:
     """Return True only if the native handle loads without error."""
     try:
-        from docxmint._native.handle import get_handle
+        from navyfox._native.handle import get_handle
 
         get_handle()
         return True
@@ -53,8 +53,8 @@ def _open_docx(path: str) -> docx.Document:  # type: ignore[name-defined]  # noq
 
 @native_only
 def test_paragraph_roundtrip() -> None:
-    """Paragraphs written by DocxMint are readable by python-docx."""
-    from docxmint import Document
+    """Paragraphs written by NavyFox are readable by python-docx."""
+    from navyfox import Document
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -75,8 +75,8 @@ def test_paragraph_roundtrip() -> None:
 
 @native_only
 def test_heading_roundtrip() -> None:
-    """Headings written by DocxMint have the correct style in python-docx."""
-    from docxmint import Document
+    """Headings written by NavyFox have the correct style in python-docx."""
+    from navyfox import Document
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -99,8 +99,8 @@ def test_heading_roundtrip() -> None:
 
 @native_only
 def test_table_roundtrip() -> None:
-    """Tables written by DocxMint have the correct cell text in python-docx."""
-    from docxmint import Document
+    """Tables written by NavyFox have the correct cell text in python-docx."""
+    from navyfox import Document
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -128,8 +128,8 @@ def test_table_roundtrip() -> None:
 @native_only
 def test_post_append_mutation_roundtrip() -> None:
     """Mutating a proxy after append (the _attach behavior) is reflected in the saved file."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -152,9 +152,9 @@ def test_post_append_mutation_roundtrip() -> None:
 @native_only
 def test_run_formatting_roundtrip() -> None:
     """Bold, italic, font size, and font name survive a save/load cycle."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
-    from docxmint.run import Run
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
+    from navyfox.run import Run
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -184,9 +184,9 @@ def test_run_formatting_roundtrip() -> None:
 @native_only
 def test_post_append_run_mutation_roundtrip() -> None:
     """Mutating a Run proxy after append reflects in the saved file."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
-    from docxmint.run import Run
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
+    from navyfox.run import Run
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -212,8 +212,8 @@ def test_post_append_run_mutation_roundtrip() -> None:
 @native_only
 def test_paragraph_alignment_roundtrip() -> None:
     """Paragraph alignment values survive a save/load cycle."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -239,7 +239,7 @@ def test_paragraph_alignment_roundtrip() -> None:
 @native_only
 def test_document_metadata_roundtrip() -> None:
     """Author and title document properties survive a save/load cycle."""
-    from docxmint import Document
+    from navyfox import Document
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -260,8 +260,8 @@ def test_document_metadata_roundtrip() -> None:
 @native_only
 def test_unicode_content_roundtrip() -> None:
     """Non-ASCII text survives a save/load cycle."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -289,9 +289,9 @@ def test_unicode_content_roundtrip() -> None:
 @native_only
 def test_multiple_runs_in_paragraph_roundtrip() -> None:
     """Multiple runs in a single paragraph all survive a save/load cycle."""
-    from docxmint import Document
-    from docxmint.paragraph import Paragraph
-    from docxmint.run import Run
+    from navyfox import Document
+    from navyfox.paragraph import Paragraph
+    from navyfox.run import Run
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name
@@ -324,33 +324,33 @@ def test_multiple_runs_in_paragraph_roundtrip() -> None:
 @native_only
 def test_open_nonexistent_raises_native_runtime_error() -> None:
     """Opening a file that does not exist raises NativeRuntimeError."""
-    from docxmint import Document
-    from docxmint.errors import NativeRuntimeError
+    from navyfox import Document
+    from navyfox.errors import NativeRuntimeError
 
     with pytest.raises(NativeRuntimeError):
-        Document.open("/nonexistent_docxmint_test_xyz/missing.docx")
+        Document.open("/nonexistent_navyfox_test_xyz/missing.docx")
 
 
 @native_only
 def test_edit_nonexistent_raises_native_runtime_error() -> None:
     """Editing a file that does not exist raises NativeRuntimeError."""
-    from docxmint import Document
-    from docxmint.errors import NativeRuntimeError
+    from navyfox import Document
+    from navyfox.errors import NativeRuntimeError
 
     with pytest.raises(NativeRuntimeError):
-        Document.edit("/nonexistent_docxmint_test_xyz/missing.docx")
+        Document.edit("/nonexistent_navyfox_test_xyz/missing.docx")
 
 
 @native_only
 def test_save_to_bad_path_raises_native_runtime_error() -> None:
     """Saving to a path whose parent directory does not exist raises NativeRuntimeError."""
-    from docxmint import Document
-    from docxmint.errors import NativeRuntimeError
+    from navyfox import Document
+    from navyfox.errors import NativeRuntimeError
 
     doc = Document()
     try:
         with pytest.raises(NativeRuntimeError):
-            doc.save("/nonexistent_docxmint_test_xyz/out.docx")
+            doc.save("/nonexistent_navyfox_test_xyz/out.docx")
     finally:
         doc.close()
 
@@ -358,7 +358,7 @@ def test_save_to_bad_path_raises_native_runtime_error() -> None:
 @native_only
 def test_full_document_roundtrip() -> None:
     """The README quickstart example produces a valid document."""
-    from docxmint import Document
+    from navyfox import Document
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         path = f.name

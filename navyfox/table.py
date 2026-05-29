@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Generator, Iterator
 from typing import Any, Literal, overload, override
 
-from docxmint._block import BlockContainerMixin
-from docxmint._block import BlockCtx as _BlockCtx
-from docxmint._collection import DocumentView
-from docxmint._proxy.base import ProxyBase, ElementState
-from docxmint._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
-from docxmint.paragraph import Paragraph
+from navyfox._block import BlockContainerMixin
+from navyfox._block import BlockCtx as _BlockCtx
+from navyfox._collection import DocumentView
+from navyfox._proxy.base import ProxyBase, ElementState
+from navyfox._proxy.descriptors import ChoiceProperty, FloatProperty, StringProperty
+from navyfox.paragraph import Paragraph
 
 
 class Cell(BlockContainerMixin, ProxyBase):

@@ -1,4 +1,4 @@
-"""Benchmark DocxMint vs python-docx across document sizes.
+"""Benchmark NavyFox vs python-docx across document sizes.
 
 Measures wall-clock time to build and save a document with N paragraphs
 and an N/10-row table. Results are written to scripts/benchmark_results.json
@@ -61,11 +61,11 @@ def bench_python_docx(n_paragraphs: int) -> float:
 
 
 # ---------------------------------------------------------------------------
-# DocxMint
+# NavyFox
 # ---------------------------------------------------------------------------
 
-def bench_docxmint(n_paragraphs: int) -> float:
-    from docxmint import Document
+def bench_navyfox(n_paragraphs: int) -> float:
+    from navyfox import Document
 
     times = []
     for _ in range(_repeats(n_paragraphs)):
@@ -95,7 +95,7 @@ def bench_docxmint(n_paragraphs: int) -> float:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    results: dict[str, dict[str, float]] = {"python_docx": {}, "docxmint": {}}
+    results: dict[str, dict[str, float]] = {"python_docx": {}, "navyfox": {}}
 
     for size in DOCUMENT_SIZES:
         print(f"  python-docx  n={size:>6} ...", end=" ", flush=True)
@@ -103,9 +103,9 @@ def main() -> None:
         results["python_docx"][str(size)] = t
         print(f"{t:.3f}s")
 
-        print(f"  docxmint     n={size:>6} ...", end=" ", flush=True)
-        t = bench_docxmint(size)
-        results["docxmint"][str(size)] = t
+        print(f"  navyfox     n={size:>6} ...", end=" ", flush=True)
+        t = bench_navyfox(size)
+        results["navyfox"][str(size)] = t
         print(f"{t:.3f}s")
 
     out = os.path.join(os.path.dirname(__file__), "benchmark_results.json")

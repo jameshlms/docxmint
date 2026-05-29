@@ -10,8 +10,8 @@ import warnings
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Self, overload
 
-from docxmint._proxy.base import ProxyBase
-from docxmint.errors import NativeRuntimeError, OwnershipError
+from navyfox._proxy.base import ProxyBase
+from navyfox.errors import NativeRuntimeError, OwnershipError
 
 type ElemTypesArg[T: ProxyBase] = type[T] | tuple[type[T], ...]
 
@@ -21,8 +21,8 @@ def _to_elem_tuple[T: ProxyBase](arg: ElemTypesArg[T]) -> tuple[type[T], ...]:
 
 
 if TYPE_CHECKING:
-    from docxmint._native.handle import Handle
-    from docxmint.document import Document
+    from navyfox._native.handle import Handle
+    from navyfox.document import Document
 
 
 class CollectionMixin[T: ProxyBase]:
@@ -89,8 +89,8 @@ class CollectionMixin[T: ProxyBase]:
     _EMU_PER_INCH = 914400
 
     def _append_one(self, element: T) -> T:
-        from docxmint.image import Image
-        from docxmint.table import Table
+        from navyfox.image import Image
+        from navyfox.table import Table
 
         self._validate_element(element)
         native = object.__getattribute__(element, "_native")
@@ -234,7 +234,7 @@ class CollectionMixin[T: ProxyBase]:
         """Remove *element* from the collection and mark it stale.
 
         After removal, any attempt to access *element*'s properties raises
-        :exc:`~docxmint.errors.StaleProxyError`. Call ``snapshot()`` before
+        :exc:`~navyfox.errors.StaleProxyError`. Call ``snapshot()`` before
         removing if you need to keep the data.
 
         Args:
@@ -346,8 +346,8 @@ class DocumentView[T: ProxyBase](CollectionMixin[T]):
     name. All reads and mutations go directly to the native layer — nothing is
     cached in Python.
 
-    Obtained via collection properties on :class:`~docxmint.document.Document`,
-    :class:`~docxmint.paragraph.Paragraph`, :class:`~docxmint.table.Table`, etc.:
+    Obtained via collection properties on :class:`~navyfox.document.Document`,
+    :class:`~navyfox.paragraph.Paragraph`, :class:`~navyfox.table.Table`, etc.:
 
     .. code-block:: python
 

@@ -1,7 +1,7 @@
 """Image proxy — a run-level inline image element.
 
 In OpenXML an image is stored as ``<w:drawing>`` inside a ``<w:r>`` run, so
-:class:`Image` is a sibling of :class:`~docxmint.run.Run` within
+:class:`Image` is a sibling of :class:`~navyfox.run.Run` within
 ``para.runs``.
 """
 
@@ -11,8 +11,8 @@ import mimetypes
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
-from docxmint._proxy.base import ProxyBase, ElementState
-from docxmint._proxy.descriptors import FloatProperty, StringProperty
+from navyfox._proxy.base import ProxyBase, ElementState
+from navyfox._proxy.descriptors import FloatProperty, StringProperty
 
 if TYPE_CHECKING:
     pass

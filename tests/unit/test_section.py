@@ -11,14 +11,14 @@ from tests.unit.mock_handle import MockHandle
 def _make_doc(mock: MockHandle | None = None):
     if mock is None:
         mock = MockHandle()
-    with patch("docxmint._native.handle.get_handle", return_value=mock):
-        from docxmint.document import Document
+    with patch("navyfox._native.handle.get_handle", return_value=mock):
+        from navyfox.document import Document
         doc = Document()
     return doc, mock
 
 
 def _add_section(doc, mock):
-    from docxmint.section import Section
+    from navyfox.section import Section
     return doc.sections._append_one(Section())
 
 
@@ -28,32 +28,32 @@ def _add_section(doc, mock):
 
 class TestSectionDefaults:
     def test_margin_top_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_top == 1.0
 
     def test_margin_bottom_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_bottom == 1.0
 
     def test_margin_left_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_left == 1.25
 
     def test_margin_right_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_right == 1.25
 
     def test_margin_header_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_header == 0.5
 
     def test_margin_footer_default(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_footer == 0.5
 
@@ -64,13 +64,13 @@ class TestSectionDefaults:
 
 class TestSectionConstruction:
     def test_margins_readable_in_construction_state(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         assert s.margin_top == 1.0
         assert s.margin_left == 1.25
 
     def test_margins_writable_in_construction_state(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         s.margin_top = 0.75
         s.margin_bottom = 0.75
@@ -82,7 +82,7 @@ class TestSectionConstruction:
         assert s.margin_right == 0.5
 
     def test_margin_header_footer_writable(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         s.margin_header = 0.3
         s.margin_footer = 0.4
@@ -156,7 +156,7 @@ class TestSectionLive:
 
 class TestSectionCopyData:
     def test_copy_data_includes_margins_construction(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         s.margin_top = 0.5
         s.margin_left = 0.75
@@ -174,7 +174,7 @@ class TestSectionCopyData:
         assert abs(data["margin_bottom"] - 0.6) < 1e-9
 
     def test_copy_data_all_margin_keys_present(self):
-        from docxmint.section import Section
+        from navyfox.section import Section
         s = Section()
         data = s._copy_data()
         for key in ("margin_top", "margin_bottom", "margin_left", "margin_right",
@@ -193,7 +193,7 @@ class TestDocMargins:
         return doc, mock
 
     def test_getter_returns_page_margins(self):
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
         doc, mock = self._make_doc_with_section()
         assert isinstance(doc.margins, PageMargins)
 
@@ -203,7 +203,7 @@ class TestDocMargins:
         assert abs(doc.margins.top - 0.5) < 1e-9
 
     def test_getter_no_sections_returns_defaults(self):
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
         doc, mock = _make_doc()
         m = doc.margins
         assert m == PageMargins()
@@ -236,7 +236,7 @@ class TestDocMargins:
         assert abs(m.right - 0.8) < 1e-9
 
     def test_set_page_margins_object(self):
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
         doc, mock = self._make_doc_with_section()
         doc.margins = PageMargins(top=0.5, bottom=0.5, left=0.75, right=0.75)
         m = doc.margins
@@ -251,7 +251,7 @@ class TestDocMargins:
             assert abs(sec.margin_top - 0.5) < 1e-9
 
     def test_set_also_applies_header_footer_from_page_margins(self):
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
         doc, mock = self._make_doc_with_section()
         doc.margins = PageMargins(header=0.3, footer=0.4)
         sec = doc.sections[0]

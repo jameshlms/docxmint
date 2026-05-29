@@ -1,7 +1,7 @@
-# docxmint._proxy — proxy base and descriptor machinery
-from docxmint._attrs import RawAttrMixin
-from docxmint._proxy.base import UNSET, ProxyBase
-from docxmint._proxy.descriptors import (
+# navyfox._proxy — proxy base and descriptor machinery
+from navyfox._attrs import RawAttrMixin
+from navyfox._proxy.base import UNSET, ProxyBase
+from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,

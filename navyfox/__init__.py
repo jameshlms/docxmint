@@ -1,4 +1,4 @@
-"""DocxMint — Pythonic ``.docx`` manipulation backed by a C# Native AOT library.
+"""NavyFox — Pythonic ``.docx`` manipulation backed by a C# Native AOT library.
 
 All document data lives in the C# layer; Python holds lightweight proxy objects
 (handles). The central types are:
@@ -13,17 +13,17 @@ Use :func:`snapshot` to capture a document-independent copy of any proxy element
 so it can be used after the document is closed.
 """
 
-from docxmint._collection import DocumentView
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint.document import Document
-from docxmint.errors import (
+from navyfox._collection import DocumentView
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox.document import Document
+from navyfox.errors import (
     DocumentClosedError,
-    DocxMintError,
+    NavyFoxError,
     NativeRuntimeError,
     OwnershipError,
     StaleProxyError,
 )
-from docxmint.formats import (
+from navyfox.formats import (
     Border,
     CellBorders,
     CellMargin,
@@ -37,13 +37,13 @@ from docxmint.formats import (
     SpacingFormat,
     TableBorders,
 )
-from docxmint.hyperlink import Hyperlink
-from docxmint.image import Image
-from docxmint.paragraph import HorizontalRule, Paragraph
-from docxmint.run import Run
-from docxmint.section import Section
-from docxmint.styles import Style, StyleCollection
-from docxmint.table import Cell, Row, Table
+from navyfox.hyperlink import Hyperlink
+from navyfox.image import Image
+from navyfox.paragraph import HorizontalRule, Paragraph
+from navyfox.run import Run
+from navyfox.section import Section
+from navyfox.styles import Style, StyleCollection
+from navyfox.table import Cell, Row, Table
 
 
 def snapshot[T: _ProxyBase](elem: T) -> T:
@@ -105,7 +105,7 @@ __all__ = [
     "CellMargin",
     "ColumnFormat",
     # Errors
-    "DocxMintError",
+    "NavyFoxError",
     "NativeRuntimeError",
     "DocumentClosedError",
     "StaleProxyError",

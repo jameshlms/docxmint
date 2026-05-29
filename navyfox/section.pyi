@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from docxmint._collection import DocumentView as DocumentView
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint.image import Image
-from docxmint.paragraph import HorizontalRule, LineStyleArg, Paragraph
-from docxmint.table import Table
+from navyfox._collection import DocumentView as DocumentView
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox.image import Image
+from navyfox.paragraph import HorizontalRule, LineStyleArg, Paragraph
+from navyfox.table import Table
 
 class Section(_ProxyBase):
     orientation: Literal["portrait", "landscape"]

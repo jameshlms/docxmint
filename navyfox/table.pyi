@@ -1,9 +1,9 @@
 from collections.abc import Iterator
 from typing import Any, Literal, overload
 
-from docxmint._collection import DocumentView as DocumentView
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint.paragraph import Paragraph
+from navyfox._collection import DocumentView as DocumentView
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox.paragraph import Paragraph
 
 class Cell(_ProxyBase):
     text: str

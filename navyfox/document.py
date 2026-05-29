@@ -10,20 +10,20 @@ import weakref
 from collections.abc import Iterable
 from typing import IO, TYPE_CHECKING, Any, Self, overload
 
-import docxmint._native.handle as _handle_mod
-from docxmint._block import BlockContainerMixin
-from docxmint._collection import CollectionMixin
-from docxmint._native.handle import Handle
-from docxmint._proxy.base import ProxyBase
-from docxmint.errors import DocumentClosedError
-from docxmint.paragraph import Paragraph
-from docxmint.table import Table
+import navyfox._native.handle as _handle_mod
+from navyfox._block import BlockContainerMixin
+from navyfox._collection import CollectionMixin
+from navyfox._native.handle import Handle
+from navyfox._proxy.base import ProxyBase
+from navyfox.errors import DocumentClosedError
+from navyfox.paragraph import Paragraph
+from navyfox.table import Table
 
 if TYPE_CHECKING:
-    from docxmint._collection import DocumentView
-    from docxmint.formats import PageMargins
-    from docxmint.section import Section
-    from docxmint.styles import StyleCollection
+    from navyfox._collection import DocumentView
+    from navyfox.formats import PageMargins
+    from navyfox.section import Section
+    from navyfox.styles import StyleCollection
 
 _PathArg = str | os.PathLike[str] | IO[bytes]
 
@@ -50,7 +50,7 @@ def _resolve_open_path(path: _PathArg) -> tuple[str, str | None]:
 
 
 def _type_name_map() -> dict[type, str]:
-    from docxmint.section import Section
+    from navyfox.section import Section
 
     return {
         Paragraph: "paragraphs",
@@ -64,7 +64,7 @@ def _collection_for_type(t: type) -> str:
 
 
 class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
-    """A DOCX document backed by the DocxMint native library.
+    """A DOCX document backed by the NavyFox native library.
 
     The document is the body collection — iterate it, append to it, and access
     typed filtered views via ``.paragraphs``, ``.tables``, ``.sections``, etc.
@@ -265,8 +265,8 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def _elem_types(self) -> tuple[type, ...]:
-        from docxmint.paragraph import Paragraph
-        from docxmint.table import Table
+        from navyfox.paragraph import Paragraph
+        from navyfox.table import Table
 
         return (Paragraph, Table)
 
@@ -374,7 +374,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def styles(self) -> StyleCollection:
-        from docxmint.styles import StyleCollection
+        from navyfox.styles import StyleCollection
 
         return StyleCollection(self._require_open(), self)
 
@@ -428,7 +428,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
     @property
     def sections(self) -> DocumentView[Section]:
-        from docxmint.section import Section
+        from navyfox.section import Section
 
         return self._block_view(Section, "sections")
 
@@ -440,14 +440,14 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     def margins(self) -> PageMargins:
         """Page margins for the document.
 
-        On get: returns the shared :class:`~docxmint.formats.PageMargins` when all
+        On get: returns the shared :class:`~navyfox.formats.PageMargins` when all
         sections have identical margins, or the defaults if no sections exist.
         Raises :exc:`ValueError` if sections have differing margins — use
         ``doc.sections[i].margin_*`` to read per-section values instead.
 
         On set: applies the given margins to **all** sections. Accepts:
 
-        - A :class:`~docxmint.formats.PageMargins` instance.
+        - A :class:`~navyfox.formats.PageMargins` instance.
         - A single ``float`` — sets top, bottom, left, and right uniformly.
         - A 2-tuple ``(vertical, horizontal)`` — CSS-style shorthand.
         - A 4-tuple ``(top, bottom, left, right)``.
@@ -459,7 +459,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
                 doc.margins = (0.75, 1.0)             # 0.75 top/bottom, 1.0 left/right
                 doc.margins = PageMargins(left=0.5, right=0.5)
         """
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
 
         secs = self.sections
         if len(secs) == 0:
@@ -497,7 +497,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
         self,
         value: PageMargins | float | tuple[float, float] | tuple[float, float, float, float],
     ) -> None:
-        from docxmint.formats import PageMargins
+        from navyfox.formats import PageMargins
 
         match value:
             case PageMargins():
@@ -542,17 +542,17 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
             types: A list of proxy types to include (e.g. ``[Paragraph, Table]``).
 
         Returns:
-            A :class:`~docxmint.collection.DocumentView` that yields only elements
+            A :class:`~navyfox.collection.DocumentView` that yields only elements
             whose type is in *types*.
 
         Example:
             .. code-block:: python
 
-                from docxmint import Paragraph, Table
+                from navyfox import Paragraph, Table
                 for elem in doc.group([Paragraph, Table]):
                     print(type(elem).__name__, repr(elem))
         """
-        from docxmint._collection import DocumentView
+        from navyfox._collection import DocumentView
 
         lib: Handle = self._get_lib()
         return DocumentView(
@@ -571,7 +571,7 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
         return bool(self._get_open())
 
     def __contains__(self, element: object) -> bool:
-        from docxmint._proxy.base import ProxyBase
+        from navyfox._proxy.base import ProxyBase
 
         if not isinstance(element, ProxyBase):
             return False

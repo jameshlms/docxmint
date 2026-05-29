@@ -6,10 +6,10 @@ from collections.abc import Iterable, Iterator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal, Self, override
 
-from docxmint._collection import DocumentView
-from docxmint._proxy.base import UNSET as _UNSET
-from docxmint._proxy.base import ElementState, ProxyBase
-from docxmint._proxy.descriptors import (
+from navyfox._collection import DocumentView
+from navyfox._proxy.base import UNSET as _UNSET
+from navyfox._proxy.base import ElementState, ProxyBase
+from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
     ColorProperty,
@@ -19,9 +19,9 @@ from docxmint._proxy.descriptors import (
 )
 
 if TYPE_CHECKING:
-    from docxmint.hyperlink import Hyperlink
-    from docxmint.image import Image
-    from docxmint.run import Run
+    from navyfox.hyperlink import Hyperlink
+    from navyfox.image import Image
+    from navyfox.run import Run
 
 
 class Paragraph(ProxyBase):
@@ -82,7 +82,7 @@ class Paragraph(ProxyBase):
             self._check_valid()
             self._get_lib().set_str(self._native_handle, "text", value)
             return
-        from docxmint.run import Run
+        from navyfox.run import Run
 
         self._get_data()["runs"] = [Run(value)] if value else []
 
@@ -104,7 +104,7 @@ class Paragraph(ProxyBase):
         list_style: Literal["bullet", "number"] | None = None,
         list_level: int = 0,
     ) -> None:
-        from docxmint.run import Run
+        from navyfox.run import Run
 
         super().__init__()
         data: dict[str, Any] = {}
@@ -150,7 +150,7 @@ class Paragraph(ProxyBase):
 
     @property
     def runs(self) -> DocumentView[Run]:
-        from docxmint.run import Run
+        from navyfox.run import Run
 
         if not self._is_live:
             runs_list: list[Any] = self._get_data().setdefault("runs", [])
@@ -167,7 +167,7 @@ class Paragraph(ProxyBase):
     @property
     def images(self) -> DocumentView[Image]:
         """Live filtered view of inline images in this paragraph."""
-        from docxmint.image import Image
+        from navyfox.image import Image
 
         if not self._is_live:
             return DocumentView.empty(Image, "images")
@@ -187,17 +187,17 @@ class Paragraph(ProxyBase):
     def add_run(self, text: str = "") -> Run:
         """Append a new run and return it.
 
-        Works in both construction state (returns a construction-state :class:`~docxmint.run.Run`
+        Works in both construction state (returns a construction-state :class:`~navyfox.run.Run`
         added to the paragraph's run list) and live state (materialises the run in the
         native layer immediately).
         """
-        from docxmint.run import Run
+        from navyfox.run import Run
 
         if not self._is_live:
             run = Run(text)
             self._get_data().setdefault("runs", []).append(run)
             return run
-        from docxmint._collection import DocumentView
+        from navyfox._collection import DocumentView
 
         view = DocumentView(
             self._native_handle,
@@ -228,7 +228,7 @@ class Paragraph(ProxyBase):
             height: Display height in inches.
             alt_text: Accessibility description.
         """
-        from docxmint.image import Image
+        from navyfox.image import Image
 
         if not self._is_live:
             raise ValueError("Cannot add_image to a paragraph that is not yet in a document.")
@@ -246,7 +246,7 @@ class Paragraph(ProxyBase):
     @property
     def hyperlinks(self) -> DocumentView[Hyperlink]:
         """Live filtered view of inline hyperlinks in this paragraph."""
-        from docxmint.hyperlink import Hyperlink
+        from navyfox.hyperlink import Hyperlink
 
         if not self._is_live:
             return DocumentView.empty(Hyperlink, "hyperlinks")
@@ -266,7 +266,7 @@ class Paragraph(ProxyBase):
             text: Display text shown to the reader.
             url:  Target URL.
         """
-        from docxmint.hyperlink import Hyperlink
+        from navyfox.hyperlink import Hyperlink
 
         if not self._is_live:
             raise ValueError("Cannot add_hyperlink to a paragraph that is not yet in a document.")
@@ -433,7 +433,7 @@ class _ConstructionRunsView:
         self._runs = runs
 
     def _validate_element(self, element: Any) -> None:
-        from docxmint.run import Run
+        from navyfox.run import Run
 
         if not isinstance(element, Run):
             raise TypeError(f"runs only accepts Run elements, got {type(element).__name__}")

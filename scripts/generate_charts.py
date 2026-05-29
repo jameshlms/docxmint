@@ -4,7 +4,7 @@ Reads scripts/benchmark_results.json (produced by scripts/benchmark.py)
 and writes PNGs to docs/assets/:
 
   - docs/assets/perf_time.png      — log-scale wall-clock time per workload
-  - docs/assets/perf_speedup.png   — DocxMint speedup factor over python-docx
+  - docs/assets/perf_speedup.png   — NavyFox speedup factor over python-docx
   - docs/assets/perf_size.png      — installed package size comparison
 
 See notebooks/benchmark.ipynb for the full interactive benchmark.
@@ -38,7 +38,7 @@ def load_results() -> tuple[list[int], list[float], list[float]]:
         data = json.load(f)
     sizes = sorted(int(k) for k in data["python_docx"])
     docx_times = [data["python_docx"][str(s)] * 1000 for s in sizes]  # seconds -> ms
-    fast_times = [data["docxmint"][str(s)] * 1000 for s in sizes]
+    fast_times = [data["navyfox"][str(s)] * 1000 for s in sizes]
     return sizes, docx_times, fast_times
 
 
@@ -67,7 +67,7 @@ def plot_time(sizes: list[int], docx_times: list[float], fast_times: list[float]
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
-    ax.bar(x - bar_w / 2, fast_times, bar_w, label="DocxMint", color=DOCXMINT_COLOR, zorder=3)
+    ax.bar(x - bar_w / 2, fast_times, bar_w, label="NavyFox", color=DOCXMINT_COLOR, zorder=3)
     ax.bar(x + bar_w / 2, docx_times, bar_w, label="python-docx", color=DOCX_COLOR, zorder=3)
 
     ax.set_yscale("log")
@@ -76,7 +76,7 @@ def plot_time(sizes: list[int], docx_times: list[float], fast_times: list[float]
     ax.set_xticklabels(labels)
     ax.set_xlabel("Number of paragraphs")
     ax.set_ylabel("Time (ms, log scale)")
-    ax.set_title("Build + save time: DocxMint vs python-docx")
+    ax.set_title("Build + save time: NavyFox vs python-docx")
     ax.legend(framealpha=0)
     ax.grid(axis="y", **GRID_STYLE)
     ax.spines["top"].set_visible(False)
@@ -117,7 +117,7 @@ def plot_speedup(sizes: list[int], docx_times: list[float], fast_times: list[flo
     ax.set_xticklabels(labels)
     ax.set_xlabel("Number of paragraphs")
     ax.set_ylabel("Speedup (× faster than python-docx)")
-    ax.set_title("DocxMint speedup over python-docx")
+    ax.set_title("NavyFox speedup over python-docx")
     ax.axhline(1, color="black", linewidth=0.8, linestyle="--")
     ax.grid(axis="y", **GRID_STYLE)
     ax.spines["top"].set_visible(False)
@@ -131,10 +131,10 @@ def plot_speedup(sizes: list[int], docx_times: list[float], fast_times: list[flo
 
 
 def plot_size() -> None:
-    docxmint_mb = _dir_size_mb(_package_root("docxmint"))
+    navyfox_mb = _dir_size_mb(_package_root("navyfox"))
     pydocx_mb = _dir_size_mb(_package_root("docx"))
 
-    print(f"  docxmint   : {docxmint_mb:.2f} MB")
+    print(f"  navyfox   : {navyfox_mb:.2f} MB")
     print(f"  python-docx: {pydocx_mb:.2f} MB")
 
     fig, ax = plt.subplots(figsize=(6, 5))
@@ -142,16 +142,16 @@ def plot_size() -> None:
     ax.set_facecolor("white")
 
     bars = ax.bar(
-        ["DocxMint", "python-docx"],
-        [docxmint_mb, pydocx_mb],
+        ["NavyFox", "python-docx"],
+        [navyfox_mb, pydocx_mb],
         color=[DOCXMINT_COLOR, DOCX_COLOR],
         width=0.45,
         zorder=3,
     )
-    for bar, size in zip(bars, [docxmint_mb, pydocx_mb]):
+    for bar, size in zip(bars, [navyfox_mb, pydocx_mb]):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(docxmint_mb, pydocx_mb) * 0.01,
+            bar.get_height() + max(navyfox_mb, pydocx_mb) * 0.01,
             f"{size:.2f} MB",
             ha="center",
             va="bottom",

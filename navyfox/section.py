@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self, override
 
-from docxmint._block import BlockContainerMixin
-from docxmint._proxy.base import UNSET as _UNSET
-from docxmint._proxy.base import ElementState, ProxyBase
-from docxmint._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
+from navyfox._block import BlockContainerMixin
+from navyfox._proxy.base import UNSET as _UNSET
+from navyfox._proxy.base import ElementState, ProxyBase
+from navyfox._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
 
 
 class Section(BlockContainerMixin, ProxyBase):
     """A document section — controls page layout for a contiguous range of body content.
 
-    Sections are live proxies accessed through :attr:`~docxmint.document.Document.sections`:
+    Sections are live proxies accessed through :attr:`~navyfox.document.Document.sections`:
 
     .. code-block:: python
 

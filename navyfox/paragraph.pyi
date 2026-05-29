@@ -5,12 +5,12 @@ from typing import Any, Literal, Self
 
 from _typeshed import Incomplete
 
-from docxmint._collection import DocumentView as DocumentView
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint._proxy.descriptors import ChoiceProperty as _ChoiceProperty
-from docxmint.hyperlink import Hyperlink as Hyperlink
-from docxmint.image import Image as Image
-from docxmint.run import Run as Run
+from navyfox._collection import DocumentView as DocumentView
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox._proxy.descriptors import ChoiceProperty as _ChoiceProperty
+from navyfox.hyperlink import Hyperlink as Hyperlink
+from navyfox.image import Image as Image
+from navyfox.run import Run as Run
 
 class Paragraph(_ProxyBase):
     _child_type_name: str

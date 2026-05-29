@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from docxmint.units import Color
+from navyfox.units import Color
 
 # Backward-compatible alias — prefer Color directly.
 RGBColor = Color

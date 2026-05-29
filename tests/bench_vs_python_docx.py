@@ -1,4 +1,4 @@
-"""Benchmark DocxMint vs python-docx.
+"""Benchmark NavyFox vs python-docx.
 
 Run directly:
     python tests/bench_vs_python_docx.py
@@ -31,12 +31,12 @@ OPEN_APPEND_PARAS = 50      # paragraphs appended during the timed workload
 
 
 # ---------------------------------------------------------------------------
-# DocxMint workloads
+# NavyFox workloads
 # ---------------------------------------------------------------------------
 
 
-def _docxmint_paragraphs(path: str) -> None:
-    from docxmint import Document
+def _navyfox_paragraphs(path: str) -> None:
+    from navyfox import Document
 
     doc = Document()
     for i in range(PARA_COUNT):
@@ -44,8 +44,8 @@ def _docxmint_paragraphs(path: str) -> None:
     doc.save(path)
 
 
-def _docxmint_headings(path: str) -> None:
-    from docxmint import Document
+def _navyfox_headings(path: str) -> None:
+    from navyfox import Document
 
     doc = Document()
     for i in range(HEADING_COUNT):
@@ -53,8 +53,8 @@ def _docxmint_headings(path: str) -> None:
     doc.save(path)
 
 
-def _docxmint_table(path: str) -> None:
-    from docxmint import Document
+def _navyfox_table(path: str) -> None:
+    from navyfox import Document
 
     doc = Document()
     table = doc.add_table(rows=TABLE_ROWS, cols=TABLE_COLS)
@@ -64,8 +64,8 @@ def _docxmint_table(path: str) -> None:
     doc.save(path)
 
 
-def _docxmint_open_append(source_path: str, out_path: str) -> None:
-    from docxmint import Document
+def _navyfox_open_append(source_path: str, out_path: str) -> None:
+    from navyfox import Document
 
     doc = Document(source_path)
     for i in range(OPEN_APPEND_PARAS):
@@ -164,7 +164,7 @@ def _run_suite(
     speedup = py_med / fast_med if fast_med > 0 else float("inf")
 
     print(f"  {label}")
-    print(f"    docxmint   : {_fmt(fast_med)}  (median of {RUNS})")
+    print(f"    navyfox   : {_fmt(fast_med)}  (median of {RUNS})")
     print(f"    python-docx: {_fmt(py_med)}  (median of {RUNS})")
     print(f"    speedup    : {speedup:.1f}x")
     print()
@@ -184,7 +184,7 @@ def _run_open_suite(
     speedup = py_med / fast_med if fast_med > 0 else float("inf")
 
     print(f"  {label}")
-    print(f"    docxmint   : {_fmt(fast_med)}  (median of {RUNS})")
+    print(f"    navyfox   : {_fmt(fast_med)}  (median of {RUNS})")
     print(f"    python-docx: {_fmt(py_med)}  (median of {RUNS})")
     print(f"    speedup    : {speedup:.1f}x")
     print()
@@ -206,10 +206,10 @@ def _build_fixture() -> str:
 def main() -> None:
     # Check availability
     try:
-        from docxmint._native.loader import get_lib
+        from navyfox._native.loader import get_lib
         get_lib()
     except RuntimeError:
-        print("ERROR: DocxMint native binary not available — cannot benchmark.")
+        print("ERROR: NavyFox native binary not available — cannot benchmark.")
         sys.exit(1)
 
     try:
@@ -218,21 +218,21 @@ def main() -> None:
         print("ERROR: python-docx not installed — run: pip install python-docx")
         sys.exit(1)
 
-    print(f"Benchmark: DocxMint vs python-docx  ({RUNS} runs each, median reported)\n")
+    print(f"Benchmark: NavyFox vs python-docx  ({RUNS} runs each, median reported)\n")
 
     _run_suite(
         f"Paragraphs ({PARA_COUNT} paragraphs, alternating bold)",
-        _docxmint_paragraphs,
+        _navyfox_paragraphs,
         _pydocx_paragraphs,
     )
     _run_suite(
         f"Headings ({HEADING_COUNT} headings, levels 1-3)",
-        _docxmint_headings,
+        _navyfox_headings,
         _pydocx_headings,
     )
     _run_suite(
         f"Table ({TABLE_ROWS}x{TABLE_COLS} with cell text)",
-        _docxmint_table,
+        _navyfox_table,
         _pydocx_table,
     )
 
@@ -240,7 +240,7 @@ def main() -> None:
     try:
         _run_open_suite(
             f"Open + append ({OPEN_EXISTING_PARAS} existing paragraphs, append {OPEN_APPEND_PARAS})",
-            _docxmint_open_append,
+            _navyfox_open_append,
             _pydocx_open_append,
             fixture,
         )

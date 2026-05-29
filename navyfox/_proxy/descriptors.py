@@ -12,10 +12,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast, overload
 
-from docxmint.units import normalize_color_input
+from navyfox.units import normalize_color_input
 
 if TYPE_CHECKING:
-    from docxmint._proxy.base import ProxyBase
+    from navyfox._proxy.base import ProxyBase
 
 
 # ---------------------------------------------------------------------------

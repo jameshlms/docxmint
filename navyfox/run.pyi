@@ -1,7 +1,7 @@
 from typing import Any, Literal, Self
 
-from docxmint._proxy.base import ProxyBase as _ProxyBase
-from docxmint.units import Color as Color
+from navyfox._proxy.base import ProxyBase as _ProxyBase
+from navyfox.units import Color as Color
 
 class Run(_ProxyBase):
     text: str
