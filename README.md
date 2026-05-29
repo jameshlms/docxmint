@@ -1,10 +1,10 @@
-# FastDOCX
+# DocxMint
 
 <p align="center">
-  <img src="docs/assets/fastdocx_icon.svg" alt="FastDOCX icon" width="200">
+  <img src="docs/assets/DocxMint-icon.svg" alt="DocxMint icon" width="200">
 </p>
 
-**FastDOCX** is a Python library for any depth of DOCX file manipulation, writing and reading DOCX files simply like _python-docx_ or with Word-like fidelity powered by a
+**DocxMint** is a Python library for any depth of DOCX file manipulation, writing and reading DOCX files simply like _python-docx_ or with Word-like fidelity powered by a
 [C# Native AOT](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 shared library that wraps the
 [DocumentFormat.OpenXml SDK v3.5.1](https://github.com/dotnet/Open-XML-SDK).
@@ -14,22 +14,22 @@ both flat shorthand for simple documents and fluent method chaining for complex 
 
 ---
 
-## Why FastDOCX?
+## Why DocxMint?
 
 Most Python DOCX libraries wrap the OpenXML format at the XML level — parsing, modifying, and re-serialising XML trees in pure Python. This works well for simple documents, but runs into limits at scale and with more advanced formatting.
 
-**Performance.** FastDOCX delegates all document construction to a Native AOT-compiled C# binary using the official Open XML SDK. For large-scale automation — hundreds of documents, documents with large tables, or batch report generation — this is substantially faster than pure-Python alternatives because the heavy lifting happens in compiled native code rather than interpreted Python.
+**Performance.** DocxMint delegates all document construction to a Native AOT-compiled C# binary using the official Open XML SDK. For large-scale automation — hundreds of documents, documents with large tables, or batch report generation — this is substantially faster than pure-Python alternatives because the heavy lifting happens in compiled native code rather than interpreted Python.
 
 ![Build time comparison](docs/assets/perf_time.png)
 ![Speedup over python-docx](docs/assets/perf_speedup.png)
 
 > Benchmarks measure wall-clock time to build and save a document with N paragraphs and an N/10-row table. Run `python scripts/benchmark.py && python scripts/generate_charts.py` to reproduce. For a more detailed workload breakdown (headings, tables, open + append), see [notebooks/benchmark.ipynb](notebooks/benchmark.ipynb).
 
-**Package size.** The native AOT binary adds weight compared to python-docx. FastDOCX is ~85 MB installed versus ~2 MB for python-docx. This is a deliberate tradeoff — the binary ships the .NET runtime and OpenXML SDK statically linked, with no separate runtime dependency required.
+**Package size.** The native AOT binary adds weight compared to python-docx. DocxMint is ~85 MB installed versus ~2 MB for python-docx. This is a deliberate tradeoff — the binary ships the .NET runtime and OpenXML SDK statically linked, with no separate runtime dependency required.
 
 ![Installed package size](docs/assets/perf_size.png)
 
-**First-class paragraph styles.** Defining and applying named paragraph styles (font, size, colour, spacing, alignment, based-on inheritance) is a first-class API in FastDOCX rather than an afterthought requiring raw XML manipulation.
+**First-class paragraph styles.** Defining and applying named paragraph styles (font, size, colour, spacing, alignment, based-on inheritance) is a first-class API in DocxMint rather than an afterthought requiring raw XML manipulation.
 
 **Broader formatting support.** Features that require hand-crafting XML in other libraries — such as horizontal rules, custom table styles, and precise spacing control — are exposed as straightforward Python calls.
 
@@ -40,7 +40,7 @@ Most Python DOCX libraries wrap the OpenXML format at the XML level — parsing,
 ## Quickstart
 
 ```python
-from fastdocx import Document
+from docxmint import Document
 
 with Document() as doc:
     doc.add_heading("Project Report", level=1)
@@ -64,7 +64,7 @@ with Document() as doc:
 ### Mixed-format paragraph with multiple runs
 
 ```python
-from fastdocx import Document
+from docxmint import Document
 
 with Document() as doc:
     p = doc.add_paragraph(style="Normal")
@@ -82,9 +82,9 @@ with Document() as doc:
 ### Custom paragraph styles
 
 ```python
-from fastdocx import Document
-from fastdocx.enums import Alignment
-from fastdocx.font import Font
+from docxmint import Document
+from docxmint.enums import Alignment
+from docxmint.font import Font
 
 with Document() as doc:
     # Register a named style once, reuse it across paragraphs
@@ -108,7 +108,7 @@ with Document() as doc:
 ### Tables
 
 ```python
-from fastdocx import Document
+from docxmint import Document
 
 headers = ["Name", "Role", "Department"]
 rows = [
@@ -135,7 +135,7 @@ with Document() as doc:
 ### Open an existing document and append content
 
 ```python
-from fastdocx import Document
+from docxmint import Document
 
 with Document("existing.docx") as doc:
     doc.add_heading("Appendix", level=1)
@@ -149,7 +149,7 @@ with Document("existing.docx") as doc:
 ## Installation
 
 ```bash
-pip install fastdocx
+pip install docxmint
 ```
 
 > **Note:** The wheel bundles pre-compiled native binaries for
@@ -210,7 +210,7 @@ table[row, col].text = "v"
 ### Enums
 
 ```python
-from fastdocx.enums import Alignment, HeadingLevel, ColorName
+from docxmint.enums import Alignment, HeadingLevel, ColorName
 
 Alignment.LEFT | Alignment.CENTER | Alignment.RIGHT | Alignment.JUSTIFY
 HeadingLevel.H1          # use with add_heading(level=HeadingLevel.H1)
@@ -231,10 +231,10 @@ ColorName.RED.color      # returns a Color instance
 
 ```bash
 # Replace linux-x64 with your target RID
-dotnet publish native/FastDocx.Native \
+dotnet publish native/DocxMint.Native \
   -r linux-x64 -c Release \
   -p:PublishAot=true -p:NativeLib=Shared \
-  -o fastdocx/_libs/linux-x64/
+  -o docxmint/_libs/linux-x64/
 ```
 
 ### Install the Python package in editable mode
@@ -253,7 +253,7 @@ pytest tests/unit/
 pytest tests/integration/
 
 # C# tests
-dotnet test tests/native/FastDocx.Native.Tests/
+dotnet test tests/native/DocxMint.Native.Tests/
 ```
 
 ---
@@ -261,7 +261,7 @@ dotnet test tests/native/FastDocx.Native.Tests/
 ## Project layout
 
 ```
-fastdocx/                  Python package
+docxmint/                  Python package
   _native/
     loader.py              Platform-aware lazy binary loader
     bindings.py            CFFI declarations
@@ -270,7 +270,7 @@ fastdocx/                  Python package
     linux-arm64/
     win-x64/
     osx-arm64/
-native/FastDocx.Native/    C# Native AOT shared library
+native/DocxMint.Native/    C# Native AOT shared library
   NativeExports.cs         [UnmanagedCallersOnly] entry points
   DocumentBuilder.cs       OpenXML logic
   Marshalling/

@@ -2,7 +2,7 @@
 
 ## The proxy model
 
-FastDocx uses a *proxy model*: all document data lives in the C# native layer, and Python
+DocxMint uses a *proxy model*: all document data lives in the C# native layer, and Python
 holds lightweight *proxy objects* — wrappers that contain only an integer handle pointing
 to a C# object, not any document data themselves.
 
@@ -27,7 +27,7 @@ Every proxy type (Paragraph, Run, Table, …) exists in one of two states:
 document. Data is held locally in a Python dict, not in the native layer.
 
 ```python
-from fastdocx import Paragraph
+from docxmint import Paragraph
 
 para = Paragraph("Hello", style="Heading1")
 # para is in construction state — no FFI has happened yet
@@ -77,7 +77,7 @@ A live proxy is tied to its document. Closing the document invalidates all live 
 Use `snapshot()` inside the context manager to capture a document-independent copy:
 
 ```python
-from fastdocx import snapshot
+from docxmint import snapshot
 
 with Document.open("report.docx") as doc:
     para = doc.paragraphs[0]
@@ -114,8 +114,8 @@ with Document() as dst:
 | `OwnershipError` | Passing a live element from one document to another |
 | `NativeRuntimeError` | The C# layer returned an error code or threw an exception |
 
-All four are subclasses of `FastDocxError`, so you can catch them all with a single
-`except FastDocxError` if needed.
+All four are subclasses of `DocxMintError`, so you can catch them all with a single
+`except DocxMintError` if needed.
 
 ## Performance notes
 

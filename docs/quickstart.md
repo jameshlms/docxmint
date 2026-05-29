@@ -3,13 +3,13 @@
 ## Installation
 
 ```bash
-pip install fastdocx
+pip install docxmint
 ```
 
 ## Creating a document
 
 ```python
-from fastdocx import Document
+from docxmint import Document
 
 doc = Document()
 doc.add_heading("Project Report", level=1)
@@ -89,7 +89,7 @@ with Document() as doc:
 You can also set formatting at construction time:
 
 ```python
-from fastdocx import Run
+from docxmint import Run
 
 run = Run("Hello", bold=True, font_name="Arial", font_size=14)
 ```
@@ -113,13 +113,10 @@ run = Run("Hello", bold=True, font_name="Arial", font_size=14)
 
 ### Batching run edits
 
-Use `run.edit()` to send multiple property updates in a single FFI call:
+Use `run.format()` to send multiple property updates in a single FFI call:
 
 ```python
-with run.edit() as r:
-    r.bold = True
-    r.italic = True
-    r.color = "#CC0000"
+run.format(bold=True, italic=True, color="#CC0000")
 ```
 
 ## Paragraph alignment and style
@@ -164,11 +161,12 @@ for row in table.rows:
 
 ### Reading table data as a grid
 
-`table.data` returns a `list[list[str]]` — handy for dropping into a DataFrame:
+`table.data` returns a generator of rows — handy for dropping into a DataFrame:
 
 ```python
 import pandas as pd
-df = pd.DataFrame(table.data[1:], columns=table.data[0])
+rows = list(table.data)
+df = pd.DataFrame(rows[1:], columns=rows[0])
 ```
 
 ## Horizontal rules
@@ -180,7 +178,7 @@ doc.add_horizontal_rule(line_style="double", line_width=3.0, line_color="#888888
 Or construct one explicitly and append it:
 
 ```python
-from fastdocx import HorizontalRule
+from docxmint import HorizontalRule
 
 rule = HorizontalRule(line_style="dashed")
 doc.paragraphs.append(rule)
@@ -210,8 +208,8 @@ if "CustomStyle" in doc.styles:
 ## Color
 
 ```python
-from fastdocx import Run
-from fastdocx.units import Color
+from docxmint import Run
+from docxmint.units import Color
 
 run.color = Color(0xCC, 0x00, 0x00)   # RGB constructor
 run.color = "#CC0000"                  # hex string
@@ -223,7 +221,7 @@ run.color = Color.RED                  # named constant
 Objects start in **construction** state before being appended:
 
 ```python
-from fastdocx import Paragraph
+from docxmint import Paragraph
 
 para = Paragraph("Hello")      # construction state — data held locally
 doc.paragraphs.append(para)    # para transitions to live state
@@ -238,7 +236,7 @@ A live proxy becomes invalid once its document is closed. Use `snapshot()` to ca
 a document-independent copy:
 
 ```python
-from fastdocx import snapshot
+from docxmint import snapshot
 
 with Document.open("report.docx") as doc:
     para = doc.paragraphs[0]
@@ -250,10 +248,10 @@ print(snap.text)
 
 ## Error handling
 
-FastDocx raises specific subclasses of `FastDocxError`:
+DocxMint raises specific subclasses of `DocxMintError`:
 
 ```python
-from fastdocx.errors import DocumentClosedError, StaleProxyError, OwnershipError
+from docxmint.errors import DocumentClosedError, StaleProxyError, OwnershipError
 
 try:
     doc.close()
