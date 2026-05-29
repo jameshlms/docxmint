@@ -1,6 +1,10 @@
 # FastDOCX
 
-**FastDOCX** is a Python library for deep DOCX manipulation, powered by a
+<p align="center">
+  <img src="docs/assets/fastdocx_icon.svg" alt="FastDOCX icon" width="200">
+</p>
+
+**FastDOCX** is a Python library for any depth of DOCX file manipulation, writing and reading DOCX files simply like _python-docx_ or with Word-like fidelity powered by a
 [C# Native AOT](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 shared library that wraps the
 [DocumentFormat.OpenXml SDK v3.5.1](https://github.com/dotnet/Open-XML-SDK).
