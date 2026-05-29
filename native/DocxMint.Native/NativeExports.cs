@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace FastDocx.Native;
+namespace DocxMint.Native;
 
 public static unsafe class NativeExports
 {

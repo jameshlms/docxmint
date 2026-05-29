@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace FastDocx.Native;
+namespace DocxMint.Native;
 
 internal static partial class DocumentBuilder
 {

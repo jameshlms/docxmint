@@ -1,7 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace FastDocx.Native;
+namespace DocxMint.Native;
 
 internal static unsafe partial class DocumentBuilder
 {

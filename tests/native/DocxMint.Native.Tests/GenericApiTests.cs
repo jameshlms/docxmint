@@ -1,7 +1,7 @@
 using Xunit;
-using static FastDocx.Native.Tests.TestHelper;
+using static DocxMint.Native.Tests.TestHelper;
 
-namespace FastDocx.Native.Tests;
+namespace DocxMint.Native.Tests;
 
 /// <summary>
 /// Tests for the generic property/collection API — GetInt, SetInt, GetFloat, SetFloat,

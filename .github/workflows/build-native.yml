@@ -18,22 +18,22 @@ jobs:
         include:
           - rid: linux-x64
             os: ubuntu-24.04
-            lib_name: FastDocx.Native.so
+            lib_name: DocxMint.Native.so
           - rid: linux-arm64
             os: ubuntu-24.04-arm
-            lib_name: FastDocx.Native.so
+            lib_name: DocxMint.Native.so
           - rid: win-x64
             os: windows-2022
-            lib_name: FastDocx.Native.dll
+            lib_name: DocxMint.Native.dll
           - rid: win-arm64
             os: windows-11-arm
-            lib_name: FastDocx.Native.dll
+            lib_name: DocxMint.Native.dll
           - rid: osx-arm64
             os: macos-15
-            lib_name: FastDocx.Native.dylib
+            lib_name: DocxMint.Native.dylib
           - rid: osx-x64
             os: macos-15
-            lib_name: FastDocx.Native.dylib
+            lib_name: DocxMint.Native.dylib
 
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
 
       - name: Publish Native AOT shared library
         run: >
-          dotnet publish native/FastDocx.Native/FastDocx.Native.csproj
+          dotnet publish native/DocxMint.Native/DocxMint.Native.csproj
           -r ${{ matrix.rid }}
           -c Release
           --self-contained true

@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <AssemblyName>FastDocx.Native</AssemblyName>
-    <RootNamespace>FastDocx.Native</RootNamespace>
+    <AssemblyName>DocxMint.Native</AssemblyName>
+    <RootNamespace>DocxMint.Native</RootNamespace>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>FastDocx.Native.Tests</_Parameter1>
+      <_Parameter1>DocxMint.Native.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

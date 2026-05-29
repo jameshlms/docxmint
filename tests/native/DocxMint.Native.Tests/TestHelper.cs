@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace FastDocx.Native.Tests;
+namespace DocxMint.Native.Tests;
 
 /// <summary>Shared helpers used by both SmokeTests and GenericApiTests.</summary>
 internal static unsafe class TestHelper

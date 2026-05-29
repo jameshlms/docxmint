@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace FastDocx.Native.Marshalling;
+namespace DocxMint.Native.Marshalling;
 
 /// <summary>
 /// Structs that cross the FFI boundary must carry [StructLayout(LayoutKind.Sequential)]

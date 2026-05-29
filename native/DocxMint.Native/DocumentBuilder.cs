@@ -4,7 +4,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
-namespace FastDocx.Native;
+namespace DocxMint.Native;
 
 // ---------------------------------------------------------------------------
 // DocumentState — lifetime-managed wrapper around an open WordprocessingDocument

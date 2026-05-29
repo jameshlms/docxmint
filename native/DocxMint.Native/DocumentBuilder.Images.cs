@@ -4,7 +4,7 @@ using A   = DocumentFormat.OpenXml.Drawing;
 using WP  = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 
-namespace FastDocx.Native;
+namespace DocxMint.Native;
 
 internal static unsafe partial class DocumentBuilder
 {
