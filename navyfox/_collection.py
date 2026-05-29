@@ -413,8 +413,8 @@ class _SliceView[T: ProxyBase](DocumentView[T]):
     def __init__(
         self,
         items: list[T],
-        document: Document,
-        lib: Handle,
+        document: Document | None,
+        lib: Handle | None,
         elem_types: ElemTypesArg[T],
         collection_name: str,
     ) -> None:

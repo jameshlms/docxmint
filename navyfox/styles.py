@@ -142,7 +142,7 @@ class StyleCollection:
         self._doc = doc
 
     def _get_lib(self) -> Handle:
-        return cast(Handle, object.__getattribute__(self._doc, "_lib"))
+        return cast("Handle", object.__getattribute__(self._doc, "_lib"))
 
     @property
     def default(self) -> Style | None:
