@@ -5,10 +5,10 @@ from navyfox.errors import (
     DocumentClosedError as DocumentClosedError,
 )
 from navyfox.errors import (
-    NavyFoxError as NavyFoxError,
+    NativeRuntimeError as NativeRuntimeError,
 )
 from navyfox.errors import (
-    NativeRuntimeError as NativeRuntimeError,
+    NavyFoxError as NavyFoxError,
 )
 from navyfox.errors import (
     OwnershipError as OwnershipError,

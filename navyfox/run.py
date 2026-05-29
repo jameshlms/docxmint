@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal, Self, override
 
 from navyfox._proxy.base import UNSET as _UNSET
-from navyfox._proxy.base import ProxyBase, ElementState
+from navyfox._proxy.base import ElementState, ProxyBase
 from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,

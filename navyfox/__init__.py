@@ -18,8 +18,8 @@ from navyfox._proxy.base import ProxyBase as _ProxyBase
 from navyfox.document import Document
 from navyfox.errors import (
     DocumentClosedError,
-    NavyFoxError,
     NativeRuntimeError,
+    NavyFoxError,
     OwnershipError,
     StaleProxyError,
 )

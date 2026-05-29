@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, override
 
-from navyfox._proxy.base import ProxyBase, ElementState
+from navyfox._proxy.base import ElementState, ProxyBase
 from navyfox._proxy.descriptors import StringProperty
 
 __all__ = ["Hyperlink"]
