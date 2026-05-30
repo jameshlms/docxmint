@@ -66,10 +66,10 @@ jobs:
           pip install -e ".[dev]"
 
       - name: ruff check
-        run: ruff check navyfox tests
+        run: ruff check src/navyfox tests
 
       - name: mypy --strict
-        run: mypy --strict navyfox
+        run: mypy --strict src/navyfox
 
       - name: pytest (unit only)
         run: pytest tests/unit/ -v --tb=short
