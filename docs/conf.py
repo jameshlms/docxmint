@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../src"))
 
 project = "NavyFox"
 author = "James Holmes"
@@ -27,7 +27,7 @@ intersphinx_mapping = {
 
 # sphinx-autoapi: reads source without importing the package.
 # Safe when the native binary may not be present (CI, ReadTheDocs, etc.).
-autoapi_dirs = ["../navyfox"]
+autoapi_dirs = ["../src/navyfox"]
 autoapi_root = "api"
 autoapi_options = [
     "members",
@@ -51,5 +51,6 @@ source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 html_theme = "furo"
 html_static_path = ["_static"]
 html_title = "NavyFox"
+html_favicon = "_static/favicon.png"
 
 exclude_patterns = ["_build", "_static", "Thumbs.db", ".DS_Store", "DESIGN.md"]

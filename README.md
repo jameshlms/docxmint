@@ -1,7 +1,7 @@
 # NavyFox
 
 <p align="center">
-  <img src="docs/assets/NavyFox-icon.svg" alt="NavyFox icon" width="200">
+  <img src="docs/assets/NavyFox Icon.svg" alt="NavyFox icon" width="200">
 </p>
 
 **NavyFox** is a Python library for any depth of DOCX file manipulation, writing and reading DOCX files simply like _python-docx_ or with Word-like fidelity powered by a
