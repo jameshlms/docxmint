@@ -21,6 +21,21 @@ class Section(_ProxyBase):
     different_first_page: bool
 
     def __init__(self) -> None: ...
+    def format(
+        self,
+        *,
+        orientation: Literal["portrait", "landscape"] = ...,
+        page_width: float = ...,
+        page_height: float = ...,
+        margin_top: float = ...,
+        margin_bottom: float = ...,
+        margin_left: float = ...,
+        margin_right: float = ...,
+        margin_header: float = ...,
+        margin_footer: float = ...,
+        start_type: Literal["continuous", "newPage", "evenPage", "oddPage"] = ...,
+        different_first_page: bool = ...,
+    ) -> Section: ...
     @property
     def paragraphs(self) -> DocumentView[Paragraph]: ...
     @property

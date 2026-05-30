@@ -1,9 +1,7 @@
 from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal, Self
-
-from _typeshed import Incomplete
+from typing import Any, ClassVar, Literal, Self
 
 from navyfox._collection import DocumentView as DocumentView
 from navyfox._proxy.base import ProxyBase as _ProxyBase
@@ -13,16 +11,16 @@ from navyfox.image import Image as Image
 from navyfox.run import Run as Run
 
 class Paragraph(_ProxyBase):
-    _child_type_name: str
+    _child_type_name: ClassVar[str]
     @property
     def text(self) -> str: ...
     @text.setter
     def text(self, value: str) -> None: ...
-    style: Incomplete
+    style: str
     alignment: _ChoiceProperty[Literal["left", "right", "center", "justify"]]
-    keep_together: Incomplete
-    keep_with_next: Incomplete
-    page_break_before: Incomplete
+    keep_together: bool
+    keep_with_next: bool
+    page_break_before: bool
     space_before: float
     space_after: float
     line_spacing: float
@@ -67,9 +65,27 @@ class Paragraph(_ProxyBase):
         alt_text: str = "",
     ) -> Image: ...
     def add_hyperlink(self, text: str, url: str) -> Hyperlink: ...
+    def format(
+        self,
+        *,
+        style: str = ...,
+        alignment: Literal["left", "right", "center", "justify"] = ...,
+        keep_together: bool = ...,
+        keep_with_next: bool = ...,
+        page_break_before: bool = ...,
+        space_before: float = ...,
+        space_after: float = ...,
+        line_spacing: float = ...,
+        indent_left: float = ...,
+        indent_right: float = ...,
+        indent_hanging: float = ...,
+        list_style: Literal["bullet", "number"] = ...,
+        list_level: int = ...,
+    ) -> Self: ...
     def add_break(self) -> Self: ...
     def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self: ...
     def set_style(self, style: str) -> Self: ...
+    def copy(self) -> Paragraph: ...
     def _copy_data(self) -> dict[str, Any]: ...
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
@@ -80,8 +96,8 @@ class Paragraph(_ProxyBase):
 
 class HorizontalRule(Paragraph):
     line_style: _ChoiceProperty[Literal["single", "double", "dotted", "dashed", "wave"]]
-    line_width: Incomplete
-    line_color: Incomplete
+    line_width: float
+    line_color: str | None
     def __init__(
         self,
         *,
@@ -89,6 +105,7 @@ class HorizontalRule(Paragraph):
         line_width: float = 1.0,
         line_color: str = "auto",
     ) -> None: ...
+    def copy(self) -> HorizontalRule: ...
     def _copy_data(self) -> dict[str, Any]: ...
     def __repr__(self) -> str: ...
 
