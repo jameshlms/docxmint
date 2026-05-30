@@ -82,6 +82,12 @@ internal sealed class StyleElem(Style style, nint docHandle) : ElemWrapper(docHa
     public readonly Style Style = style;
 }
 
+internal sealed class SectElem(SectionProperties sectPr, nint docHandle) : ElemWrapper(docHandle)
+{
+    public override string TypeName => "section";
+    public readonly SectionProperties SectPr = sectPr;
+}
+
 // ---------------------------------------------------------------------------
 // DocumentBuilder — unified handle registry and static helpers
 // ---------------------------------------------------------------------------
@@ -99,6 +105,7 @@ internal static unsafe partial class DocumentBuilder
     private static readonly ConcurrentDictionary<TableCell, nint> SCellHandles = new();
     private static readonly ConcurrentDictionary<Run, nint> SImageHandles = new();
     private static readonly ConcurrentDictionary<Style, nint> SStyleHandles = new();
+    private static readonly ConcurrentDictionary<SectionProperties, nint> SSectHandles = new();
 
     private static long _sNextHandle = 1;
     private static nint NextHandle() => (nint)Interlocked.Increment(ref _sNextHandle);
@@ -189,6 +196,24 @@ internal static unsafe partial class DocumentBuilder
         SStyleHandles[style] = h;
         SElements[h] = new StyleElem(style, docHandle);
         return h;
+    }
+
+    private static nint GetOrCreateSectHandle(SectionProperties sp, nint docHandle)
+    {
+        if (SSectHandles.TryGetValue(sp, out var h)) return h;
+        h = NextHandle();
+        SSectHandles[sp] = h;
+        SElements[h] = new SectElem(sp, docHandle);
+        return h;
+    }
+
+    private static void AppendToBody(Body body, OpenXmlElement element)
+    {
+        var sectPr = body.GetFirstChild<SectionProperties>();
+        if (sectPr is not null)
+            body.InsertBefore(element, sectPr);
+        else
+            body.AppendChild(element);
     }
 
     // --- OpenXml bool helper ---

@@ -17,9 +17,10 @@ internal static unsafe partial class DocumentBuilder
         {
             return elem switch
             {
-                ParaElem p => GetParaInt(p.Para, n),
-                RunElem r => GetRunInt(r.Run, n),
+                ParaElem p  => GetParaInt(p.Para, n),
+                RunElem r   => GetRunInt(r.Run, n),
                 StyleElem s => GetStyleInt(s.Style, n),
+                SectElem  e => GetSectionInt(e.SectPr, n),
                 _ => -2
             };
         }
@@ -92,9 +93,10 @@ internal static unsafe partial class DocumentBuilder
         var n = ReadStr(name, nameLen);
         try
         {
-            if (elem is ParaElem p) return SetParaInt(p.Para, n, value);
-            if (elem is RunElem r)  return SetRunInt(r.Run, n, value);
+            if (elem is ParaElem p)  return SetParaInt(p.Para, n, value);
+            if (elem is RunElem r)   return SetRunInt(r.Run, n, value);
             if (elem is StyleElem s) return SetStyleInt(s.Style, n, value);
+            if (elem is SectElem e)  return SetSectionInt(e.SectPr, n, value);
             return -1;
         }
         catch { return -1; }
@@ -193,10 +195,11 @@ internal static unsafe partial class DocumentBuilder
         {
             return elem switch
             {
-                ParaElem p => GetParaFloat(p.Para, n),
-                RunElem r => GetRunFloat(r.Run, n),
+                ParaElem p  => GetParaFloat(p.Para, n),
+                RunElem r   => GetRunFloat(r.Run, n),
                 ImageElem i => GetImageFloat(i, n),
                 StyleElem s => GetStyleFloat(s.Style, n),
+                SectElem  e => GetSectionFloat(e.SectPr, n),
                 _ => double.NaN
             };
         }
@@ -265,10 +268,11 @@ internal static unsafe partial class DocumentBuilder
         {
             return elem switch
             {
-                ParaElem p => SetParaFloat(p.Para, n, value),
-                RunElem r => SetRunFloat(r.Run, n, value),
+                ParaElem p  => SetParaFloat(p.Para, n, value),
+                RunElem r   => SetRunFloat(r.Run, n, value),
                 ImageElem i => SetImageFloat(i, n, value),
                 StyleElem s => SetStyleFloat(s.Style, n, value),
+                SectElem  e => SetSectionFloat(e.SectPr, n, value),
                 _ => -1
             };
         }
@@ -350,14 +354,15 @@ internal static unsafe partial class DocumentBuilder
         {
             var val = elem switch
             {
-                ParaElem p => n == "list_style" ? GetParaListStyle(p) : GetParaStr(p.Para, n),
-                RunElem r => GetRunStr(r.Run, n),
+                ParaElem p  => n == "list_style" ? GetParaListStyle(p) : GetParaStr(p.Para, n),
+                RunElem r   => GetRunStr(r.Run, n),
                 ImageElem i => GetImageStr(i, n),
                 TableElem t => GetTableStr(t.Table, n),
                 RowElem row => GetRowStr(row.Row, n),
-                CellElem c => GetCellStr(c.Cell, n),
+                CellElem c  => GetCellStr(c.Cell, n),
                 StyleElem s => GetStyleStr(s.Style, n),
-                DocElem d => GetDocStr(d, n),
+                SectElem  e => GetSectionStr(e.SectPr, n),
+                DocElem d   => GetDocStr(d, n),
                 _ => null
             };
 
@@ -515,14 +520,15 @@ internal static unsafe partial class DocumentBuilder
         {
             return elem switch
             {
-                ParaElem p => n == "list_style" ? SetParaListStyle(p, v) : SetParaStr(p.Para, n, v),
-                RunElem r => SetRunStr(r.Run, n, v),
+                ParaElem p  => n == "list_style" ? SetParaListStyle(p, v) : SetParaStr(p.Para, n, v),
+                RunElem r   => SetRunStr(r.Run, n, v),
                 ImageElem i => SetImageStr(i, n, v),
                 TableElem t => SetTableStr(t.Table, n, v),
                 RowElem row => SetRowStr(row.Row, n, v),
-                CellElem c => SetCellStr(c.Cell, n, v),
+                CellElem c  => SetCellStr(c.Cell, n, v),
                 StyleElem s => SetStyleStr(s.Style, n, v),
-                DocElem d => SetDocStr(d, n, v),
+                SectElem  e => SetSectionStr(e.SectPr, n, v),
+                DocElem d   => SetDocStr(d, n, v),
                 _ => -1
             };
         }

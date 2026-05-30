@@ -13,7 +13,11 @@ internal static unsafe partial class DocumentBuilder
             var stream = new MemoryStream();
             var wp = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
             var mainPart = wp.AddMainDocumentPart();
-            mainPart.Document = new Document(new Body());
+            var sectPr = new SectionProperties(
+                new PageSize { Width = 12240, Height = 15840 },
+                new PageMargin { Top = 1440, Bottom = 1440, Left = 1800, Right = 1800, Header = 720, Footer = 720 }
+            );
+            mainPart.Document = new Document(new Body(sectPr));
             AddDefaultStyles(mainPart);
 
             var h = NextHandle();
@@ -76,11 +80,16 @@ internal static unsafe partial class DocumentBuilder
 
     private static void EnsureTrailingParagraph(Body body)
     {
-        var last = body.LastChild;
-        bool needsTrailing = last is not Paragraph p
+        var sectPr = body.GetFirstChild<SectionProperties>();
+        var candidate = sectPr?.PreviousSibling() ?? body.LastChild;
+        bool needsTrailing = candidate is not Paragraph p
             || p.ParagraphProperties?.ParagraphBorders?.GetFirstChild<BottomBorder>() is not null;
-        if (needsTrailing)
-            body.AppendChild(new Paragraph());
+        if (!needsTrailing) return;
+        var trailing = new Paragraph();
+        if (sectPr is not null)
+            body.InsertBefore(trailing, sectPr);
+        else
+            body.AppendChild(trailing);
     }
 
     internal static void Dispose(nint handle)
@@ -112,6 +121,7 @@ internal static unsafe partial class DocumentBuilder
             case RowElem row: SRowHandles.TryRemove(row.Row, out _);       break;
             case CellElem c:  SCellHandles.TryRemove(c.Cell, out _);       break;
             case StyleElem s: SStyleHandles.TryRemove(s.Style, out _);     break;
+            case SectElem  e: SSectHandles.TryRemove(e.SectPr, out _);    break;
         }
     }
 }

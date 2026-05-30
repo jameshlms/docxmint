@@ -54,10 +54,10 @@ internal static unsafe partial class DocumentBuilder
         var body = GetBody(d);
         return col switch
         {
-            "body" => body.ChildElements.Count(e => e is Paragraph or Table),
+            "body"       => body.ChildElements.Count(e => e is Paragraph or Table),
             "paragraphs" => body.Elements<Paragraph>().Count(),
-            "tables" => body.Elements<Table>().Count(),
-            "sections" => 0,   // sections not yet implemented
+            "tables"     => body.Elements<Table>().Count(),
+            "sections"   => body.Elements<Paragraph>().Count(p => p.ParagraphProperties?.SectionProperties is not null) + 1,
             _ => -1
         };
     }
@@ -148,6 +148,22 @@ internal static unsafe partial class DocumentBuilder
                 var table = tables[index];
                 return GetOrCreateTableHandle(
                     table, GetTableCells(table), GetTableRows(table), GetTableCols(table), docHandle);
+            }
+            case "sections":
+            {
+                var sectParas = body.Elements<Paragraph>()
+                    .Where(p => p.ParagraphProperties?.SectionProperties is not null)
+                    .ToList();
+                int total = sectParas.Count + 1;
+                if (index < 0) index = total + index;
+                if (index < 0 || index >= total) return 0;
+                SectionProperties sp;
+                if (index < sectParas.Count)
+                    sp = sectParas[index].ParagraphProperties!.SectionProperties!;
+                else
+                    sp = body.GetFirstChild<SectionProperties>()
+                        ?? (SectionProperties)body.AppendChild(new SectionProperties());
+                return GetOrCreateSectHandle(sp, docHandle);
             }
             default:
                 return 0;
@@ -261,7 +277,7 @@ internal static unsafe partial class DocumentBuilder
     private static nint AppendParagraphToDoc(DocElem d, nint docHandle)
     {
         var para = new Paragraph();
-        GetBody(d).AppendChild(para);
+        AppendToBody(GetBody(d), para);
         return GetOrCreateParagraphHandle(para, docHandle);
     }
 
@@ -407,7 +423,7 @@ internal static unsafe partial class DocumentBuilder
     private static nint AddTableToDoc(DocElem d, nint docHandle, int rows, int cols)
     {
         var table = BuildTable(rows, cols, out var cells);
-        GetBody(d).AppendChild(table);
+        AppendToBody(GetBody(d), table);
         return RegisterTableHandles(table, cells, rows, cols, docHandle);
     }
 
