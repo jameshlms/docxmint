@@ -104,7 +104,7 @@ class TestHyperlinkAppend:
         para = _add_para(doc, mock)
         link = Hyperlink("click", "https://example.com")
         para.hyperlinks.append(link)
-        native = link._getattr("_native")
+        native = link._native
         assert native is not None
         assert mock._types[native] == "hyperlink"
 
@@ -114,7 +114,7 @@ class TestHyperlinkAppend:
         para = _add_para(doc, mock)
         link = Hyperlink("click", "https://example.com")
         para.hyperlinks.append(link)
-        native = link._getattr("_native")
+        native = link._native
         assert mock._handles[native]["text"] == "click"
 
     def test_url_stored_in_native(self):
@@ -123,7 +123,7 @@ class TestHyperlinkAppend:
         para = _add_para(doc, mock)
         link = Hyperlink("click", "https://example.com")
         para.hyperlinks.append(link)
-        native = link._getattr("_native")
+        native = link._native
         assert mock._handles[native]["url"] == "https://example.com"
 
     def test_add_hyperlink_convenience(self):
@@ -165,13 +165,13 @@ class TestHyperlinkLiveProxy:
     def test_text_writable_live(self):
         link, mock = self._make_live_link()
         link.text = "updated"
-        native = link._getattr("_native")
+        native = link._native
         assert mock._handles[native]["text"] == "updated"
 
     def test_url_writable_live(self):
         link, mock = self._make_live_link()
         link.url = "https://updated.com"
-        native = link._getattr("_native")
+        native = link._native
         assert mock._handles[native]["url"] == "https://updated.com"
 
     def test_repr_live(self):
@@ -255,8 +255,8 @@ class TestHyperlinkSnapshot:
         link = Hyperlink("click", "https://example.com")
         snap = snapshot(link)
         assert snap.is_snapshot
-        assert snap._getattr("_data")["text"] == "click"
-        assert snap._getattr("_data")["url"] == "https://example.com"
+        assert snap._data["text"] == "click"
+        assert snap._data["url"] == "https://example.com"
 
     def test_snapshot_live(self):
         from navyfox import snapshot
@@ -267,7 +267,7 @@ class TestHyperlinkSnapshot:
         para.hyperlinks.append(link)
         snap = snapshot(link)
         assert snap.is_snapshot
-        data = snap._getattr("_data")
+        data = snap._data
         assert data["text"] == "click"
         assert data["url"] == "https://example.com"
 

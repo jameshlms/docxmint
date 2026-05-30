@@ -30,6 +30,7 @@ class Hyperlink(ProxyBase):
         url:  Target URL.
     """
 
+    __slots__ = ()
     _child_type_name = "hyperlink"
 
     text = StringProperty("text", default="")
@@ -42,7 +43,7 @@ class Hyperlink(ProxyBase):
             d["text"] = text
         if url:
             d["url"] = url
-        self._setattr("_data", d)
+        self._data = d
 
     # ------------------------------------------------------------------
     # Materialisation
@@ -51,9 +52,9 @@ class Hyperlink(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         lib = self._get_lib()
-        native = self._native_handle
+        native = self._require_native
         return {
             "text": lib.get_str(native, "text"),
             "url": lib.get_str(native, "url"),
@@ -67,10 +68,9 @@ class Hyperlink(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Hyperlink(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
-            data = self._getattr("_data")
-            return f"Hyperlink(text={data.get('text', '')!r}, url={data.get('url', '')!r})"
+            return f"Hyperlink(text={self._data.get('text', '')!r}, url={self._data.get('url', '')!r})"
         try:
             return f"Hyperlink(text={self.text!r}, url={self.url!r}, handle={native!r})"
         except Exception:

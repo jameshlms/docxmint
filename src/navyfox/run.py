@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, override
+from typing import Any, Literal, Self, TypedDict, Unpack, override
 
-from navyfox._proxy.base import UNSET as _UNSET
 from navyfox._proxy.base import ElementState, ProxyBase
 from navyfox._proxy.descriptors import (
     BoolProperty,
@@ -17,6 +16,29 @@ from navyfox.formats import RGBColor
 from navyfox.units import Color
 
 __all__ = ["Run", "Color", "RGBColor"]
+
+
+class _RunFormat(TypedDict, total=False):
+    style: str
+    text: str
+    bold: bool
+    italic: bool
+    strikethrough: bool
+    underline: bool | Literal["single", "double", "dotted", "dashed", "wave"]
+    all_caps: bool
+    small_caps: bool
+    superscript: bool
+    subscript: bool
+    hidden: bool
+    emboss: bool
+    imprint: bool
+    outline: bool
+    shadow: bool
+    color: str | Color | None
+    highlight: str | None
+    font_name: str
+    font_size: float
+    language: str
 
 
 class Run(ProxyBase):
@@ -47,6 +69,7 @@ class Run(ProxyBase):
     into a single FFI call.
     """
 
+    __slots__ = ()
     _child_type_name = "run"
 
     # Text
@@ -227,7 +250,7 @@ class Run(ProxyBase):
             data["font_size"] = font_size
         if language:
             data["language"] = language
-        self._setattr("_data", data)
+        self._data = data
 
     def set_bold(self, value: bool = True) -> Self:
         """Set bold and return *self* for chaining."""
@@ -323,30 +346,7 @@ class Run(ProxyBase):
     # format() — batch writes into a single set_many call
     # ------------------------------------------------------------------
 
-    def format(
-        self,
-        *,
-        style: str = _UNSET,
-        text: str = _UNSET,
-        bold: bool = _UNSET,
-        italic: bool = _UNSET,
-        strikethrough: bool = _UNSET,
-        underline: bool | Literal["single", "double", "dotted", "dashed", "wave"] = _UNSET,
-        all_caps: bool = _UNSET,
-        small_caps: bool = _UNSET,
-        superscript: bool = _UNSET,
-        subscript: bool = _UNSET,
-        hidden: bool = _UNSET,
-        emboss: bool = _UNSET,
-        imprint: bool = _UNSET,
-        outline: bool = _UNSET,
-        shadow: bool = _UNSET,
-        color: str | Color | None = _UNSET,
-        highlight: str | None = _UNSET,
-        font_name: str = _UNSET,
-        font_size: float = _UNSET,
-        language: str = _UNSET,
-    ) -> Self:
+    def format(self, **kwargs: Unpack[_RunFormat]) -> Self:
         """Set multiple run properties in a single FFI call and return *self*.
 
         Only the keyword arguments you pass are changed; omitted properties are
@@ -386,40 +386,17 @@ class Run(ProxyBase):
 
                 run.format(bold=True, italic=True, color="#CC0000", font_size=14)
         """
-        if all_caps is not _UNSET and small_caps is not _UNSET and all_caps and small_caps:
+        if kwargs.get("all_caps") and kwargs.get("small_caps"):
             raise ValueError("'all_caps' and 'small_caps' are mutually exclusive.")
-        if superscript is not _UNSET and subscript is not _UNSET and superscript and subscript:
+        if kwargs.get("superscript") and kwargs.get("subscript"):
             raise ValueError("'superscript' and 'subscript' are mutually exclusive.")
-        if emboss is not _UNSET and imprint is not _UNSET and emboss and imprint:
+        if kwargs.get("emboss") and kwargs.get("imprint"):
             raise ValueError("'emboss' and 'imprint' are mutually exclusive.")
 
-        changes: dict[str, Any] = {}
+        changes: dict[str, Any] = dict(kwargs)
 
-        if style is not _UNSET:
-            changes["style"] = style
-
-        for _name, _val in (
-            ("text", text),
-            ("bold", bold),
-            ("italic", italic),
-            ("strikethrough", strikethrough),
-            ("all_caps", all_caps),
-            ("small_caps", small_caps),
-            ("superscript", superscript),
-            ("subscript", subscript),
-            ("hidden", hidden),
-            ("emboss", emboss),
-            ("imprint", imprint),
-            ("outline", outline),
-            ("shadow", shadow),
-            ("font_name", font_name),
-            ("font_size", font_size),
-            ("language", language),
-        ):
-            if _val is not _UNSET:
-                changes[_name] = _val
-
-        if underline is not _UNSET:
+        if "underline" in changes:
+            underline = changes.pop("underline")
             if underline is True:
                 changes["underline"] = "single"
             elif underline is False:
@@ -427,22 +404,26 @@ class Run(ProxyBase):
             else:
                 changes["underline"] = underline
 
-        if color is not _UNSET and color is not None:
-            if isinstance(color, Color):
-                changes["color"] = color.to_hex()
-            elif color == "auto":
-                changes["color"] = "auto"
-            else:
-                try:
-                    changes["color"] = Color.from_hex(color).to_hex()
-                except ValueError:
-                    raise ValueError(
-                        f"Invalid color {color!r}. "
-                        "Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
-                    ) from None
+        if "color" in changes:
+            color = changes.pop("color")
+            if color is not None:
+                if isinstance(color, Color):
+                    changes["color"] = color.to_hex()
+                elif color == "auto":
+                    changes["color"] = "auto"
+                else:
+                    try:
+                        changes["color"] = Color.from_hex(color).to_hex()
+                    except ValueError:
+                        raise ValueError(
+                            f"Invalid color {color!r}. "
+                            "Use '#RRGGBB', 'RRGGBB', Color(r, g, b), or 'auto'."
+                        ) from None
 
-        if highlight is not _UNSET and highlight is not None:
-            changes["highlight"] = highlight
+        if "highlight" in changes:
+            highlight = changes.pop("highlight")
+            if highlight is not None:
+                changes["highlight"] = highlight
 
         self._apply_changes(changes)
         return self
@@ -467,18 +448,18 @@ class Run(ProxyBase):
         text = self.text
         a = Run(text[:index])
         b = Run(text[index:])
-        data = self._getattr("_data")
+        data = self._data
         for k, v in data.items():
             if k != "text":
-                a._getattr("_data")[k] = v
-                b._getattr("_data")[k] = v
+                a._data[k] = v
+                b._data[k] = v
         return a, b
 
     def __add__(self, other: Run) -> Run:
         if type(other) is not Run:
             return NotImplemented
-        self_data = self._getattr("_data")
-        other_data = other._getattr("_data")
+        self_data = self._data
+        other_data = other._data
         # Check formatting compatibility (excluding text)
         self_fmt = {k: v for k, v in self_data.items() if k != "text"}
         other_fmt = {k: v for k, v in other_data.items() if k != "text"}
@@ -496,9 +477,9 @@ class Run(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         lib = self._get_lib()
-        native = self._native_handle
+        native = self._require_native
 
         def get_bool(name: str) -> bool:
             return lib.get_int(native, name) > 0
@@ -557,10 +538,9 @@ class Run(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Run(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
-            data = self._getattr("_data")
-            text = data.get("text", "")
+            text = self._data.get("text", "")
             return f"Run({text!r})"
         try:
             return f"Run(text={self.text!r}, handle={native!r})"

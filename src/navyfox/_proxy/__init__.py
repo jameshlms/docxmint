@@ -1,6 +1,5 @@
 # navyfox._proxy — proxy base and descriptor machinery
-from navyfox._attrs import RawAttrMixin
-from navyfox._proxy.base import UNSET, ProxyBase
+from navyfox._proxy.base import ProxyBase
 from navyfox._proxy.descriptors import (
     BoolProperty,
     ChoiceProperty,
@@ -13,8 +12,6 @@ from navyfox._proxy.descriptors import (
 
 __all__ = [
     "ProxyBase",
-    "UNSET",
-    "RawAttrMixin",
     "BoolProperty",
     "IntProperty",
     "StringProperty",

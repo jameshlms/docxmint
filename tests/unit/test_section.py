@@ -134,7 +134,7 @@ class TestSectionLive:
         sec, mock = self._make_live_section()
         sec.margin_top = 0.5
         sec.margin_left = 0.75
-        native = sec._getattr("_native")
+        native = sec._native
         assert mock._handles[native]["margin_top"] == 0.5
         assert mock._handles[native]["margin_left"] == 0.75
 

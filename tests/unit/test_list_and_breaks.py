@@ -42,7 +42,7 @@ class TestLineBreaks:
     def test_break_appended_as_child(self, doc_and_mock):
         doc, mock = doc_and_mock
         para = doc.add_paragraph("Hello")
-        native = para._getattr("_native")
+        native = para._native
         before = mock.get_count(native, "body")
         para.add_break()
         assert mock.get_count(native, "body") == before + 1
@@ -72,19 +72,19 @@ class TestLineBreaks:
 class TestBulletConstruction:
     def test_list_style_in_data(self):
         para = Paragraph("item", list_style="bullet")
-        assert para._getattr("_data")["list_style"] == "bullet"
+        assert para._data["list_style"] == "bullet"
 
     def test_list_level_in_data(self):
         para = Paragraph("item", list_style="bullet", list_level=2)
-        assert para._getattr("_data")["list_level"] == 2
+        assert para._data["list_level"] == 2
 
     def test_numbered_style_in_data(self):
         para = Paragraph("item", list_style="number")
-        assert para._getattr("_data")["list_style"] == "number"
+        assert para._data["list_style"] == "number"
 
     def test_default_level_zero(self):
         para = Paragraph("item", list_style="bullet")
-        assert para._getattr("_data").get("list_level", 0) == 0
+        assert para._data.get("list_level", 0) == 0
 
     def test_list_style_property_reads_data(self):
         para = Paragraph("item", list_style="bullet")

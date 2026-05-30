@@ -2,12 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, override
+from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict, Unpack, override
 
 from navyfox._block import BlockContainerMixin
-from navyfox._proxy.base import UNSET as _UNSET
 from navyfox._proxy.base import ElementState, ProxyBase
 from navyfox._proxy.descriptors import BoolProperty, ChoiceProperty, FloatProperty
+
+if TYPE_CHECKING:
+    from navyfox._native.handle import Handle
+    from navyfox.document import Document
+
+
+class _SectionFormat(TypedDict, total=False):
+    orientation: Literal["portrait", "landscape"]
+    page_width: float
+    page_height: float
+    margin_top: float
+    margin_bottom: float
+    margin_left: float
+    margin_right: float
+    margin_header: float
+    margin_footer: float
+    start_type: Literal["continuous", "newPage", "evenPage", "oddPage"]
+    different_first_page: bool
 
 
 class Section(BlockContainerMixin, ProxyBase):
@@ -17,7 +34,7 @@ class Section(BlockContainerMixin, ProxyBase):
 
     .. code-block:: python
 
-        section = doc.sections[0]
+        section = doc.sections[0]  # or doc.sections.first
         section.orientation = "landscape"
         section.page_width = 11.0    # inches
         section.page_height = 8.5   # inches
@@ -32,6 +49,7 @@ class Section(BlockContainerMixin, ProxyBase):
     - ``different_first_page`` — whether the first page has a distinct header/footer
     """
 
+    __slots__ = tuple()
     _child_type_name = "section"
 
     orientation: ChoiceProperty[Literal["portrait", "landscape"]] = ChoiceProperty(
@@ -61,21 +79,7 @@ class Section(BlockContainerMixin, ProxyBase):
     # Batch write
     # ------------------------------------------------------------------
 
-    def format(
-        self,
-        *,
-        orientation: Literal["portrait", "landscape"] = _UNSET,
-        page_width: float = _UNSET,
-        page_height: float = _UNSET,
-        margin_top: float = _UNSET,
-        margin_bottom: float = _UNSET,
-        margin_left: float = _UNSET,
-        margin_right: float = _UNSET,
-        margin_header: float = _UNSET,
-        margin_footer: float = _UNSET,
-        start_type: Literal["continuous", "newPage", "evenPage", "oddPage"] = _UNSET,
-        different_first_page: bool = _UNSET,
-    ) -> Self:
+    def format(self, **kwargs: Unpack[_SectionFormat]) -> Self:
         """Set multiple section properties in a single FFI call and return *self*.
 
         Only the keyword arguments you pass are changed; omitted properties are
@@ -92,31 +96,16 @@ class Section(BlockContainerMixin, ProxyBase):
                     margin_right=0.75,
                 )
         """
-        changes: dict[str, Any] = {}
-        for _name, _val in (
-            ("orientation", orientation),
-            ("page_width", page_width),
-            ("page_height", page_height),
-            ("margin_top", margin_top),
-            ("margin_bottom", margin_bottom),
-            ("margin_left", margin_left),
-            ("margin_right", margin_right),
-            ("margin_header", margin_header),
-            ("margin_footer", margin_footer),
-            ("start_type", start_type),
-            ("different_first_page", different_first_page),
-        ):
-            if _val is not _UNSET:
-                changes[_name] = _val
-        self._apply_changes(changes)
+        self._apply_changes(dict(kwargs))
         return self
 
     @override
-    def _block_context(self) -> tuple[int, Any, Any] | None:
+    def _block_context(self) -> tuple[int, Handle, Document] | None:
         if not self._is_live:
             return None
         self._check_valid()
-        return (self._native_handle, self._get_lib(), self._document_ref)
+        handle, doc = self._require_live()
+        return handle, self._get_lib(), doc
 
     @override
     def _copy_data(self) -> dict[str, Any]:
@@ -138,7 +127,7 @@ class Section(BlockContainerMixin, ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Section(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
             return "Section(spec)"
         return f"Section(handle={native!r})"

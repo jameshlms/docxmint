@@ -45,7 +45,7 @@ class TestImageConstruction:
         p.write_bytes(_PNG_BYTES)
         img = Image(str(p), width=2.0, height=1.5)
         assert img.is_construction
-        data = img._getattr("_data")
+        data = img._data
         assert data["_image_data"] == _PNG_BYTES
         assert data["_content_type"] == "image/png"
 
@@ -54,14 +54,14 @@ class TestImageConstruction:
         p = tmp_path / "photo.jpeg"
         p.write_bytes(_PNG_BYTES)
         img = Image(str(p))
-        assert img._getattr("_data")["_content_type"] == "image/jpeg"
+        assert img._data["_content_type"] == "image/jpeg"
 
     def test_explicit_content_type_overrides_extension(self, tmp_path):
         from navyfox.image import Image
         p = tmp_path / "photo.png"
         p.write_bytes(_PNG_BYTES)
         img = Image(str(p), content_type="image/tiff")
-        assert img._getattr("_data")["_content_type"] == "image/tiff"
+        assert img._data["_content_type"] == "image/tiff"
 
     def test_raises_if_both_src_and_data(self, tmp_path):
         from navyfox.image import Image
@@ -78,7 +78,7 @@ class TestImageConstruction:
     def test_alt_text_stored(self):
         from navyfox.image import Image
         img = Image(data=_PNG_BYTES, alt_text="Company logo")
-        assert img._getattr("_data")["alt_text"] == "Company logo"
+        assert img._data["alt_text"] == "Company logo"
 
     def test_repr_construction(self):
         from navyfox.image import Image
@@ -107,7 +107,7 @@ class TestImageAppend:
         para = _add_para(doc, mock)
         img = Image(data=_PNG_BYTES, content_type="image/png", width=2.0, height=1.5)
         para.images.append(img)
-        native = img._getattr("_native")
+        native = img._native
         assert native is not None
         assert mock._types[native] == "image"
 
@@ -117,7 +117,7 @@ class TestImageAppend:
         para = _add_para(doc, mock)
         img = Image(data=_PNG_BYTES, content_type="image/png", width=2.0, height=1.5)
         para.images.append(img)
-        native = img._getattr("_native")
+        native = img._native
         assert mock._handles[native]["width_emu"] == int(2.0 * 914400)
         assert mock._handles[native]["height_emu"] == int(1.5 * 914400)
 
@@ -127,7 +127,7 @@ class TestImageAppend:
         para = _add_para(doc, mock)
         img = Image(data=_PNG_BYTES, content_type="image/png")
         para.images.append(img)
-        native = img._getattr("_native")
+        native = img._native
         assert mock._handles[native]["_image_data"] == _PNG_BYTES
 
     def test_content_type_stored(self):
@@ -136,7 +136,7 @@ class TestImageAppend:
         para = _add_para(doc, mock)
         img = Image(data=_PNG_BYTES, content_type="image/png")
         para.images.append(img)
-        native = img._getattr("_native")
+        native = img._native
         assert mock._handles[native]["content_type"] == "image/png"
 
     def test_alt_text_set_via_set_str(self):
@@ -145,7 +145,7 @@ class TestImageAppend:
         para = _add_para(doc, mock)
         img = Image(data=_PNG_BYTES, content_type="image/png", alt_text="Logo")
         para.images.append(img)
-        native = img._getattr("_native")
+        native = img._native
         assert mock._handles[native]["alt_text"] == "Logo"
 
     def test_add_image_convenience(self):
@@ -185,7 +185,7 @@ class TestImageLiveProxy:
     def test_alt_text_writable(self):
         img, mock = self._make_live_image()
         img.alt_text = "Updated"
-        native = img._getattr("_native")
+        native = img._native
         assert mock._handles[native]["alt_text"] == "Updated"
 
     def test_repr_live(self):
@@ -256,7 +256,7 @@ class TestImageSnapshot:
         img = Image(data=_PNG_BYTES, content_type="image/png", width=2.0, height=1.5)
         snap = snapshot(img)
         assert snap.is_snapshot
-        data = snap._getattr("_data")
+        data = snap._data
         assert data["_image_data"] == _PNG_BYTES
         assert data["_content_type"] == "image/png"
 
@@ -269,7 +269,7 @@ class TestImageSnapshot:
         para.images.append(img)
         snap = snapshot(img)
         assert snap.is_snapshot
-        data = snap._getattr("_data")
+        data = snap._data
         assert data["_image_data"] == _PNG_BYTES
 
     def test_snapshot_can_be_appended_to_another_paragraph(self):

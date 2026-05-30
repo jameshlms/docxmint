@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Literal, Self, override
+from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict, Unpack, override
 
 from navyfox._collection import DocumentView
-from navyfox._proxy.base import UNSET as _UNSET
 from navyfox._proxy.base import ElementState, ProxyBase
 from navyfox._proxy.descriptors import (
     BoolProperty,
@@ -24,8 +23,26 @@ if TYPE_CHECKING:
     from navyfox.run import Run
 
 
+class _ParagraphFormat(TypedDict, total=False):
+    style: str
+    alignment: Literal["left", "right", "center", "justify"]
+    keep_together: bool
+    keep_with_next: bool
+    page_break_before: bool
+    space_before: float
+    space_after: float
+    line_spacing: float
+    indent_left: float
+    indent_right: float
+    indent_hanging: float
+    list_style: Literal["bullet", "number"]
+    list_level: int
+
+
 class Paragraph(ProxyBase):
     """A paragraph element — either a live proxy or a construction object.
+
+    __slots__ = () — all instance state is in ProxyBase slots.
 
     **Construction object** (before appending to a document)::
 
@@ -39,6 +56,7 @@ class Paragraph(ProxyBase):
         para.alignment = "center"
     """
 
+    __slots__ = ()
     _child_type_name = "paragraph"
 
     # Descriptors — one line per property, routing handled automatically
@@ -72,7 +90,7 @@ class Paragraph(ProxyBase):
         """
         if self._is_live:
             self._check_valid()
-            return self._get_lib().get_str(self._native_handle, "text") or ""
+            return self._get_lib().get_str(self._require_native, "text") or ""
         self._check_valid()
         return "".join(r.text for r in self._get_data().get("runs", []))
 
@@ -80,7 +98,7 @@ class Paragraph(ProxyBase):
     def text(self, value: str) -> None:
         if self._is_live:
             self._check_valid()
-            self._get_lib().set_str(self._native_handle, "text", value)
+            self._get_lib().set_str(self._require_native, "text", value)
             return
         from navyfox.run import Run
 
@@ -142,7 +160,7 @@ class Paragraph(ProxyBase):
             data["list_style"] = list_style
         if list_level:
             data["list_level"] = int(list_level)
-        self._setattr("_data", data)
+        self._data = data
 
     # ------------------------------------------------------------------
     # Runs collection
@@ -156,13 +174,8 @@ class Paragraph(ProxyBase):
             runs_list: list[Any] = self._get_data().setdefault("runs", [])
             return _ConstructionRunsView(runs_list)  # type: ignore[return-value]
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Run,
-            "runs",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Run, "runs")
 
     @property
     def images(self) -> DocumentView[Image]:
@@ -172,13 +185,8 @@ class Paragraph(ProxyBase):
         if not self._is_live:
             return DocumentView.empty(Image, "images")
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Image,
-            "images",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Image, "images")
 
     # ------------------------------------------------------------------
     # Builder methods (return Self for chaining)
@@ -199,13 +207,8 @@ class Paragraph(ProxyBase):
             return run
         from navyfox._collection import DocumentView
 
-        view = DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Run,
-            "runs",
-        )
+        handle, doc = self._require_live()
+        view = DocumentView(handle, doc, self._get_lib(), Run, "runs")
         return view._append_one(Run(text))
 
     def add_image(
@@ -251,13 +254,8 @@ class Paragraph(ProxyBase):
         if not self._is_live:
             return DocumentView.empty(Hyperlink, "hyperlinks")
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Hyperlink,
-            "hyperlinks",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Hyperlink, "hyperlinks")
 
     def add_hyperlink(self, text: str, url: str) -> Hyperlink:
         """Append an inline hyperlink and return the live proxy.
@@ -280,7 +278,7 @@ class Paragraph(ProxyBase):
         """
         if not self._is_live:
             raise ValueError("Cannot add_break to a paragraph that is not yet in a document.")
-        self._get_lib().append_child(self._native_handle, "break")
+        self._get_lib().append_child(self._require_native, "break")
         return self
 
     def align(self, alignment: Literal["left", "right", "center", "justify"]) -> Self:
@@ -306,23 +304,7 @@ class Paragraph(ProxyBase):
     # Batch write
     # ------------------------------------------------------------------
 
-    def format(
-        self,
-        *,
-        style: str = _UNSET,
-        alignment: Literal["left", "right", "center", "justify"] = _UNSET,
-        keep_together: bool = _UNSET,
-        keep_with_next: bool = _UNSET,
-        page_break_before: bool = _UNSET,
-        space_before: float = _UNSET,
-        space_after: float = _UNSET,
-        line_spacing: float = _UNSET,
-        indent_left: float = _UNSET,
-        indent_right: float = _UNSET,
-        indent_hanging: float = _UNSET,
-        list_style: Literal["bullet", "number"] = _UNSET,
-        list_level: int = _UNSET,
-    ) -> Self:
+    def format(self, **kwargs: Unpack[_ParagraphFormat]) -> Self:
         """Set multiple paragraph properties in a single FFI call and return *self*.
 
         Only the keyword arguments you pass are changed; omitted properties are
@@ -333,25 +315,7 @@ class Paragraph(ProxyBase):
 
                 para.format(space_before=6.0, space_after=6.0, line_spacing=1.15)
         """
-        changes: dict[str, Any] = {}
-        for _name, _val in (
-            ("style", style),
-            ("alignment", alignment),
-            ("keep_together", keep_together),
-            ("keep_with_next", keep_with_next),
-            ("page_break_before", page_break_before),
-            ("space_before", space_before),
-            ("space_after", space_after),
-            ("line_spacing", line_spacing),
-            ("indent_left", indent_left),
-            ("indent_right", indent_right),
-            ("indent_hanging", indent_hanging),
-            ("list_style", list_style),
-            ("list_level", list_level),
-        ):
-            if _val is not _UNSET:
-                changes[_name] = _val
-        self._apply_changes(changes)
+        self._apply_changes(dict(kwargs))
         return self
 
     # ------------------------------------------------------------------
@@ -361,7 +325,7 @@ class Paragraph(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            data = dict(self._getattr("_data"))
+            data = dict(self._data)
             if "runs" in data:
                 data["runs"] = [r.copy() for r in data["runs"]]
             return data
@@ -390,7 +354,7 @@ class Paragraph(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Paragraph(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
             return f"Paragraph({self.text!r})"
         try:
@@ -516,6 +480,8 @@ class HorizontalRule(Paragraph):
         rule.line_color = "#999999"
     """
 
+    __slots__ = ()
+
     line_style: ChoiceProperty[LineStyle] = ChoiceProperty(
         "hr_style",
         ("single", "double", "dotted", "dashed", "wave"),
@@ -535,7 +501,7 @@ class HorizontalRule(Paragraph):
         line_color: str = "auto",
     ) -> None:
         super().__init__()
-        data: dict[str, Any] = self._getattr("_data")
+        data: dict[str, Any] = self._data
         data["_horizontal_line"] = True
         data["hr_style"] = line_style
         data["hr_width"] = line_width
@@ -544,7 +510,7 @@ class HorizontalRule(Paragraph):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         data = super()._copy_data()
         data["_horizontal_line"] = True
         data["hr_style"] = self.line_style
@@ -556,9 +522,9 @@ class HorizontalRule(Paragraph):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "HorizontalRule(<stale>)"
-        native = self._get_native()
+        native = self._native
         style: LineStyle | Literal["single"] = (
-            self._getattr("_data").get("hr_style", "single")
+            self._data.get("hr_style", "single")
             if native is None
             else (self.line_style or "single")
         )

@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from typing import IO, TYPE_CHECKING, Any, Self, overload
 
 import navyfox._native.handle as _handle_mod
-from navyfox._block import BlockContainerMixin
+from navyfox._block import BlockContainerMixin, _BlockViewProperty
 from navyfox._collection import CollectionMixin
 from navyfox._native.handle import Handle
 from navyfox._proxy.base import ProxyBase
@@ -47,6 +47,38 @@ def _resolve_open_path(path: _PathArg) -> tuple[str, str | None]:
     finally:
         os.close(fd)
     return tmp_path, tmp_path
+
+
+class _DocMetaProperty:
+    """Descriptor for Document-level metadata properties stored in the native layer.
+
+    get/set call lib.get_str / lib.set_str directly; readonly=True raises AttributeError on set.
+    """
+
+    def __init__(self, key: str, *, readonly: bool = False) -> None:
+        self._key = key
+        self._readonly = readonly
+
+    @overload
+    def __get__(self, obj: None, objtype: type) -> _DocMetaProperty: ...
+    @overload
+    def __get__(self, obj: Document, objtype: type) -> str: ...
+
+    def __get__(self, obj: Document | None, objtype: type | None = None) -> str | _DocMetaProperty:
+        if obj is None:
+            return self
+        return obj._get_lib().get_str(obj._require_open(), self._key) or ""
+
+    def __set__(self, obj: Document, value: str) -> None:
+        if self._readonly:
+            raise AttributeError(f"{self._key!r} is read-only")
+        obj._get_lib().set_str(obj._require_open(), self._key, value)
+
+
+def _section_type() -> type[Section]:
+    from navyfox.section import Section
+
+    return Section
 
 
 def _type_name_map() -> dict[type, str]:
@@ -382,59 +414,22 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
     def default_style(self) -> object:
         return self.styles.default
 
-    @property
-    def author(self) -> str:
-        """Core property: document author (``dc:creator``)."""
-        lib: Handle = self._get_lib()
-        return lib.get_str(self._require_open(), "author")
-
-    @author.setter
-    def author(self, value: str) -> None:
-        lib: Handle = self._get_lib()
-        lib.set_str(self._require_open(), "author", value)
-
-    @property
-    def title(self) -> str:
-        """Core property: document title (``dc:title``)."""
-        lib: Handle = self._get_lib()
-        return lib.get_str(self._require_open(), "title")
-
-    @title.setter
-    def title(self, value: str) -> None:
-        lib: Handle = self._get_lib()
-        lib.set_str(self._require_open(), "title", value)
-
-    @property
-    def subject(self) -> str:
-        """Core property: document subject (``dc:subject``). Read-only."""
-        lib: Handle = self._get_lib()
-        return lib.get_str(self._require_open(), "subject")
-
-    @property
-    def description(self) -> str:
-        """Core property: document description / abstract (``dc:description``). Read-only."""
-        lib: Handle = self._get_lib()
-        return lib.get_str(self._require_open(), "description")
-
-    @property
-    def language(self) -> str:
-        """Core property: document language tag (``dc:language``), e.g. ``"en-US"``. Read-only."""
-        lib: Handle = self._get_lib()
-        return lib.get_str(self._require_open(), "language")
+    author = _DocMetaProperty("author")
+    """Core property: document author (``dc:creator``)."""
+    title = _DocMetaProperty("title")
+    """Core property: document title (``dc:title``)."""
+    subject = _DocMetaProperty("subject", readonly=True)
+    """Core property: document subject (``dc:subject``). Read-only."""
+    description = _DocMetaProperty("description", readonly=True)
+    """Core property: document description / abstract (``dc:description``). Read-only."""
+    language = _DocMetaProperty("language", readonly=True)
+    """Core property: document language tag (``dc:language``), e.g. ``"en-US"``. Read-only."""
 
     # ------------------------------------------------------------------
     # Filtered views
     # ------------------------------------------------------------------
 
-    @property
-    def sections(self) -> DocumentView[Section]:
-        from navyfox.section import Section
-
-        return self._block_view(Section, "sections")
-
-    @sections.setter
-    def sections(self, _: object) -> None:
-        pass  # __iadd__ already mutated the native collection
+    sections: _BlockViewProperty[Section] = _BlockViewProperty(_section_type, "sections")
 
     @property
     def margins(self) -> PageMargins:
@@ -579,10 +574,10 @@ class Document(BlockContainerMixin, CollectionMixin[ProxyBase]):
 
         if not isinstance(element, ProxyBase):
             return False
-        native = element._get_native()  # type: ignore
+        native = element._native  # type: ignore[union-attr]
         if native is None:
             return False
-        doc = element._get_document()  # type: ignore
+        doc = element._document  # type: ignore[union-attr]
         return doc is self
 
     @overload

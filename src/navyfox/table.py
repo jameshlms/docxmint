@@ -36,6 +36,7 @@ class Cell(BlockContainerMixin, ProxyBase):
     document order.
     """
 
+    __slots__ = ()
     _child_type_name = "cell"
 
     text = StringProperty("text", default="")
@@ -54,7 +55,8 @@ class Cell(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return None
         self._check_valid()
-        return (self._native_handle, self._get_lib(), self._document_ref)
+        handle, doc = self._require_live()
+        return handle, self._get_lib(), doc
 
     def merge(self, other: Cell) -> None:
         raise NotImplementedError("Cell.merge() is not yet implemented in v1.")
@@ -71,7 +73,7 @@ class Cell(BlockContainerMixin, ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Cell(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
             return "Cell(spec)"
         try:
@@ -89,7 +91,7 @@ class Cell(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return 0
         try:
-            return self._get_lib().get_count(self._native_handle, "body")
+            return self._get_lib().get_count(self._require_native, "body")
         except Exception:
             return 0
 
@@ -97,15 +99,8 @@ class Cell(BlockContainerMixin, ProxyBase):
         if not self._is_live:
             return iter([])
         self._check_valid()
-        return iter(
-            DocumentView(
-                self._native_handle,
-                self._document_ref,
-                self._get_lib(),
-                (Paragraph, Table),
-                "body",
-            )
-        )
+        handle, doc = self._require_live()
+        return iter(DocumentView(handle, doc, self._get_lib(), (Paragraph, Table), "body"))
 
 
 class Row(ProxyBase):
@@ -126,6 +121,7 @@ class Row(ProxyBase):
         row = table[0]    # same as table.rows[0]
     """
 
+    __slots__ = ()
     _child_type_name = "row"
 
     height = FloatProperty("height", default=0.0)  # points, 0 = auto
@@ -143,13 +139,8 @@ class Row(ProxyBase):
         if not self._is_live:
             return DocumentView.empty(Cell, "cells")
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Cell,
-            "cells",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Cell, "cells")
 
     @override
     def _copy_data(self) -> dict[str, Any]:
@@ -162,7 +153,7 @@ class Row(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Row(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
             return "Row(spec)"
         return f"Row(handle={native!r})"
@@ -200,6 +191,7 @@ class Table(ProxyBase):
         table.cell(0, 0).text = "Header"
     """
 
+    __slots__ = ()
     _child_type_name = "table"
 
     style = StringProperty("style", default="TableGrid")
@@ -221,7 +213,7 @@ class Table(ProxyBase):
         data: dict[str, Any] = {"rows": rows, "cols": cols}
         if style != "TableGrid":
             data["style"] = style
-        self._setattr("_data", data)
+        self._data = data
 
     # ------------------------------------------------------------------
     # Collections
@@ -232,13 +224,8 @@ class Table(ProxyBase):
         if not self._is_live:
             return DocumentView.empty(Row, "rows")
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Row,
-            "rows",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Row, "rows")
 
     @property
     def columns(self) -> DocumentView[Row]:
@@ -249,13 +236,8 @@ class Table(ProxyBase):
         if not self._is_live:
             return DocumentView.empty(Cell, "cells")
         self._check_valid()
-        return DocumentView(
-            self._native_handle,
-            self._document_ref,
-            self._get_lib(),
-            Cell,
-            "cells",
-        )
+        handle, doc = self._require_live()
+        return DocumentView(handle, doc, self._get_lib(), Cell, "cells")
 
     @property
     def data(self) -> Generator[list[str], None, None]:
@@ -280,7 +262,7 @@ class Table(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         return dict(
             style=self.style,
             alignment=self.alignment,
@@ -294,9 +276,9 @@ class Table(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Table(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
-            d = self._getattr("_data")
+            d = self._data
             return f"Table(rows={d.get('rows')}, cols={d.get('cols')})"
         try:
             return f"Table(rows={len(self.rows)}, handle={native!r})"

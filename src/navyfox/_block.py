@@ -7,7 +7,8 @@ build live ``DocumentView`` objects, or ``None`` when the container is not yet l
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, overload
 
 from navyfox._proxy.base import ProxyBase
 
@@ -25,6 +26,48 @@ if TYPE_CHECKING:
 type BlockCtx = tuple[int, Handle, Document]
 
 
+class _BlockViewProperty[T: ProxyBase]:
+    """Collection view descriptor that silently absorbs ``__iadd__`` re-assignment.
+
+    Accepts a zero-argument callable that returns the element type, called once and
+    cached, so circular imports at module load time are not an issue.
+    """
+
+    def __init__(self, type_factory: Callable[[], type[T]], collection: str) -> None:
+        self._factory = type_factory
+        self._collection = collection
+        self._type: type[T] | None = None
+
+    @overload
+    def __get__(self, obj: None, objtype: type) -> _BlockViewProperty[T]: ...
+    @overload
+    def __get__(self, obj: BlockContainerMixin, objtype: type) -> DocumentView[T]: ...
+
+    def __get__(
+        self, obj: BlockContainerMixin | None, objtype: type | None = None
+    ) -> DocumentView[T] | _BlockViewProperty[T]:
+        if obj is None:
+            return self
+        if self._type is None:
+            self._type = self._factory()
+        return obj._block_view(self._type, self._collection)
+
+    def __set__(self, obj: BlockContainerMixin, _: object) -> None:
+        pass  # absorbs __iadd__ re-assignment
+
+
+def _paragraph_type() -> type[Paragraph]:
+    from navyfox.paragraph import Paragraph
+
+    return Paragraph
+
+
+def _table_type() -> type[Table]:
+    from navyfox.table import Table
+
+    return Table
+
+
 class BlockContainerMixin:
     """Mixin that adds ``paragraphs``, ``tables``, and ``add_*`` convenience helpers.
 
@@ -34,13 +77,15 @@ class BlockContainerMixin:
 
     Provides:
 
-    - ``paragraphs`` — live :class:`~navyfox.collection.DocumentView` of paragraphs
-    - ``tables`` — live :class:`~navyfox.collection.DocumentView` of tables
-    - :meth:`add_paragraph` — create and append a paragraph in one call
-    - :meth:`add_heading` — create and append a heading paragraph in one call
-    - :meth:`add_table` — create and append a table in one call
-    - :meth:`add_horizontal_rule` — create and append a horizontal rule in one call
+    - ``paragraphs`` -- live :class:`~navyfox.collection.DocumentView` of paragraphs
+    - ``tables`` -- live :class:`~navyfox.collection.DocumentView` of tables
+    - :meth:`add_paragraph` -- create and append a paragraph in one call
+    - :meth:`add_heading` -- create and append a heading paragraph in one call
+    - :meth:`add_table` -- create and append a table in one call
+    - :meth:`add_horizontal_rule` -- create and append a horizontal rule in one call
     """
+
+    __slots__ = ()
 
     def _block_context(self) -> BlockCtx | None:
         """Return ``(handle, lib, document)`` for collection access, or ``None`` when not live."""
@@ -73,25 +118,8 @@ class BlockContainerMixin:
     # Filtered views
     # ------------------------------------------------------------------
 
-    @property
-    def paragraphs(self) -> DocumentView[Paragraph]:
-        from navyfox.paragraph import Paragraph
-
-        return self._block_view(Paragraph, "paragraphs")
-
-    @paragraphs.setter
-    def paragraphs(self, _: object) -> None:
-        pass  # absorbs __iadd__ re-assignment
-
-    @property
-    def tables(self) -> DocumentView[Table]:
-        from navyfox.table import Table
-
-        return self._block_view(Table, "tables")
-
-    @tables.setter
-    def tables(self, _: object) -> None:
-        pass  # absorbs __iadd__ re-assignment
+    paragraphs: _BlockViewProperty[Paragraph] = _BlockViewProperty(_paragraph_type, "paragraphs")
+    tables: _BlockViewProperty[Table] = _BlockViewProperty(_table_type, "tables")
 
     # ------------------------------------------------------------------
     # Convenience helpers

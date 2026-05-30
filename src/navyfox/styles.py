@@ -44,6 +44,7 @@ class Style(ProxyBase):
     - ``indent_left``, ``indent_right``, ``indent_hanging``
     """
 
+    __slots__ = ()
     _child_type_name = "style"
 
     # Metadata
@@ -83,7 +84,7 @@ class Style(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         return {
             "style_name": self.name,
             "style_type": self.type,
@@ -109,7 +110,7 @@ class Style(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Style(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
             return "Style(spec)"
         try:

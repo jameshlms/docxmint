@@ -66,6 +66,7 @@ class Image(ProxyBase):
     Both ``width`` and ``height`` are in **inches**.
     """
 
+    __slots__ = ()
     _child_type_name = "image"
 
     alt_text = StringProperty("alt_text", default="")
@@ -123,7 +124,7 @@ class Image(ProxyBase):
         if alt_text:
             d["alt_text"] = alt_text
 
-        self._setattr("_data", d)
+        self._data = d
 
     # ------------------------------------------------------------------
     # Materialisation
@@ -132,9 +133,9 @@ class Image(ProxyBase):
     @override
     def _copy_data(self) -> dict[str, Any]:
         if not self._is_live:
-            return dict(self._getattr("_data"))
+            return dict(self._data)
         lib = self._get_lib()
-        native = self._native_handle
+        native = self._require_native
         return {
             "_image_data": lib.get_image_data(native),
             "_content_type": lib.get_str(native, "content_type") or "image/png",
@@ -151,12 +152,11 @@ class Image(ProxyBase):
     def __repr__(self) -> str:
         if self.state is ElementState.STALE:
             return "Image(<stale>)"
-        native = self._get_native()
+        native = self._native
         if native is None:
-            data = self._getattr("_data")
-            ct = data.get("_content_type", "")
-            w = data.get("width", 0.0)
-            h = data.get("height", 0.0)
+            ct = self._data.get("_content_type", "")
+            w = self._data.get("width", 0.0)
+            h = self._data.get("height", 0.0)
             return f"Image(content_type={ct!r}, width={w}, height={h})"
         try:
             return f"Image(width={self.width}, height={self.height}, handle={native!r})"
