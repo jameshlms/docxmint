@@ -48,6 +48,7 @@ class Style(ProxyBase):
     _child_type_name = "style"
 
     # Metadata
+    style_id = StringProperty("style_id", default="")
     name = StringProperty("style_name", default="")
     type: ChoiceProperty[Literal["paragraph", "character", "table", "numbering"]] = ChoiceProperty(
         "style_type", ("paragraph", "character", "table", "numbering"), default="paragraph"
@@ -185,6 +186,22 @@ class StyleCollection:
         except Exception:
             return 0
 
+    def _id_for(self, name_or_id: str) -> str | None:
+        """Return the style ID for *name_or_id*, trying ID lookup first then display name.
+
+        Returns ``None`` if no matching style is found.
+        """
+        try:
+            self[name_or_id]
+            return name_or_id
+        except KeyError:
+            pass
+        for style in self:
+            if style.name == name_or_id:
+                sid = style.style_id
+                return sid if sid else None
+        return None
+
     def register(
         self,
         name: str,
@@ -240,12 +257,18 @@ class StyleCollection:
             The newly created :class:`Style` object.
         """
         lib = self._get_lib()
-        h = lib.append_child(self._handle, "style")
         if style_id is None:
             style_id = name.replace(" ", "")
-        lib.set_str(h, "style_id", style_id)
-        lib.set_str(h, "style_name", name)
-        lib.set_str(h, "style_type", type)
+
+        try:
+            existing = self[style_id]
+            h = existing._require_native
+        except KeyError:
+            h = lib.append_child(self._handle, "style")
+            lib.set_str(h, "style_id", style_id)
+            lib.set_str(h, "style_name", name)
+            lib.set_str(h, "style_type", type)
+
         if based_on is not None:
             lib.set_str(h, "based_on", based_on)
         if next_style is not None:

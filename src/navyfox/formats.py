@@ -137,22 +137,57 @@ class Shading:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
 class PageMargins:
-    """Page margins for a document section, all in **inches**."""
+    """Page margins for a document section, all in **inches**.
 
-    #: Top margin. Default ``1.0``.
-    top: float = 1.0
-    #: Bottom margin. Default ``1.0``.
-    bottom: float = 1.0
-    #: Left margin. Default ``1.25``.
-    left: float = 1.25
-    #: Right margin. Default ``1.25``.
-    right: float = 1.25
-    #: Distance from the top edge to the header. Default ``0.5``.
-    header: float = 0.5
-    #: Distance from the bottom edge to the footer. Default ``0.5``.
-    footer: float = 0.5
+    A single positional argument sets all four page margins uniformly::
+
+        PageMargins(0.5)          # 0.5 in on all sides
+        PageMargins(top=1.0, left=0.75, right=0.75)  # explicit per-side
+    """
+
+    def __init__(
+        self,
+        all_sides: float | None = None,
+        *,
+        top: float = 1.0,
+        bottom: float = 1.0,
+        left: float = 1.25,
+        right: float = 1.25,
+        header: float = 0.5,
+        footer: float = 0.5,
+    ) -> None:
+        if all_sides is not None:
+            self.top = float(all_sides)
+            self.bottom = float(all_sides)
+            self.left = float(all_sides)
+            self.right = float(all_sides)
+        else:
+            self.top = float(top)
+            self.bottom = float(bottom)
+            self.left = float(left)
+            self.right = float(right)
+        self.header = float(header)
+        self.footer = float(footer)
+
+    def __repr__(self) -> str:
+        return (
+            f"PageMargins(top={self.top}, bottom={self.bottom}, "
+            f"left={self.left}, right={self.right}, "
+            f"header={self.header}, footer={self.footer})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PageMargins):
+            return NotImplemented
+        return (
+            self.top == other.top
+            and self.bottom == other.bottom
+            and self.left == other.left
+            and self.right == other.right
+            and self.header == other.header
+            and self.footer == other.footer
+        )
 
 
 @dataclass

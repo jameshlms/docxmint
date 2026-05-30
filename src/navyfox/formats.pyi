@@ -117,6 +117,8 @@ class PageMargins:
     footer: float
     def __init__(
         self,
+        all_sides: float | None = ...,
+        *,
         top: float = ...,
         bottom: float = ...,
         left: float = ...,
@@ -124,6 +126,7 @@ class PageMargins:
         header: float = ...,
         footer: float = ...,
     ) -> None: ...
+    def __eq__(self, other: object) -> bool: ...
 
 class ColumnFormat:
     count: int

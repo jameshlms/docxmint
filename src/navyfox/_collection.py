@@ -88,6 +88,16 @@ class CollectionMixin[T: ProxyBase]:
 
     _EMU_PER_INCH = 914400
 
+    def _resolve_style(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Replace ``"style"`` value with its style ID if a display name was given."""
+        if "style" not in data:
+            return data
+        name_or_id = str(data["style"])
+        resolved = self._document.styles._id_for(name_or_id)
+        if resolved is None or resolved == name_or_id:
+            return data
+        return {**data, "style": resolved}
+
     def _append_one(self, element: T) -> T:
         from navyfox.image import Image
         from navyfox.table import Table
@@ -110,6 +120,7 @@ class CollectionMixin[T: ProxyBase]:
             cols = int(data.get("cols", 1))
             child_handle = self._lib.add_table(self._parent_handle, rows, cols)
             filtered = {k: v for k, v in data.items() if k not in ("rows", "cols")}
+            filtered = self._resolve_style(filtered)
             if filtered:
                 self._lib.set_many(child_handle, filtered)
         elif isinstance(element, Image):
@@ -130,6 +141,7 @@ class CollectionMixin[T: ProxyBase]:
             )
             runs_data: list[Any] | None = data.get("runs")
             plain_data = {k: v for k, v in data.items() if k != "runs"}
+            plain_data = self._resolve_style(plain_data)
             if plain_data:
                 self._lib.set_many(child_handle, plain_data)
             if runs_data:
